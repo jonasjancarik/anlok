@@ -23,8 +23,11 @@ def create_pin(pin_request: PINCreate, current_user: User = Depends(get_current_
             raise APIException(status_code=404, detail="User not found")
 
         # Check if user can create for the target user
-        if not PermissionChecker.can_create_for_user(
-            current_user, target_user, Permission.PINS_CREATE_OTHER
+        if not PermissionChecker.can_create_for_user_with_scope(
+            current_user,
+            target_user,
+            Permission.PINS_CREATE_OWN,
+            Permission.PINS_CREATE_OTHER,
         ):
             raise APIException(
                 status_code=403, detail="Cannot create PIN for this user"

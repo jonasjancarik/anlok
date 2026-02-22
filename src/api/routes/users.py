@@ -126,6 +126,23 @@ def update_user(
     ):
         raise APIException(status_code=403, detail="Cannot access this user")
 
+    if current_user.role == "user":
+        if updated_user.role is not None and updated_user.role != user_to_update.role:
+            raise APIException(
+                status_code=403, detail="Users cannot change their role"
+            )
+        if updated_user.apartment is not None:
+            raise APIException(
+                status_code=403, detail="Users cannot change their apartment"
+            )
+        if (
+            updated_user.is_active is not None
+            and updated_user.is_active != user_to_update.is_active
+        ):
+            raise APIException(
+                status_code=403, detail="Users cannot change account active state"
+            )
+
     # Additional role-specific checks for apartment admins
     if current_user.role == "apartment_admin":
         # Check if trying to set role to admin
@@ -205,7 +222,15 @@ def list_user_rfids(
         raise APIException(status_code=403, detail="Cannot access this user's RFIDs")
 
     rfids = db.get_user_rfids(user_id)
-    return rfids
+    return [
+        {
+            "id": rfid.id,
+            "label": rfid.label,
+            "created_at": rfid.created_at,
+            "last_four_digits": rfid.last_four_digits,
+        }
+        for rfid in rfids
+    ]
 
 
 @router.get("/{user_id}/pins", status_code=status.HTTP_200_OK)
@@ -227,4 +252,11 @@ def list_user_pins(
         raise APIException(status_code=403, detail="Cannot access this user's PINs")
 
     pins = db.get_user_pins(user_id)
-    return pins
+    return [
+        {
+            "id": pin.id,
+            "label": pin.label,
+            "created_at": pin.created_at,
+        }
+        for pin in pins
+    ]

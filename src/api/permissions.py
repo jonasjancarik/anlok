@@ -3,7 +3,8 @@ Centralized permission system for the door-pin API.
 """
 
 from enum import Enum
-from typing import Dict, List, Set, Optional
+import inspect
+from typing import Dict, Set, Optional
 from functools import wraps
 from fastapi import HTTPException
 from .models import User
@@ -218,28 +219,64 @@ class PermissionChecker:
         # Regular users and guests can only create for themselves
         return current_user.id == target_user.id
 
+    @staticmethod
+    def can_create_for_user_with_scope(
+        current_user: User,
+        target_user: User,
+        own_permission: Permission,
+        other_permission: Permission,
+    ) -> bool:
+        """Check create permission with separate own/other permission scopes."""
+        if current_user.id == target_user.id:
+            return PermissionChecker.has_permission(
+                current_user, own_permission
+            ) or PermissionChecker.has_permission(current_user, other_permission)
+
+        return PermissionChecker.can_create_for_user(
+            current_user, target_user, other_permission
+        )
+
+
+def _get_current_user_from_call(args, kwargs) -> Optional[User]:
+    current_user = kwargs.get("current_user")
+    if current_user:
+        return current_user
+
+    for arg in args:
+        if isinstance(arg, User):
+            return arg
+
+    return None
+
+
+def _require_current_user(args, kwargs) -> User:
+    current_user = _get_current_user_from_call(args, kwargs)
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    return current_user
+
 
 def require_permission(permission: Permission):
     """Decorator to require a specific permission."""
 
     def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            # Find the current_user parameter
-            current_user = kwargs.get("current_user")
-            if not current_user:
-                # Look in args for User object
-                for arg in args:
-                    if isinstance(arg, User):
-                        current_user = arg
-                        break
-
-            if not current_user:
-                raise HTTPException(status_code=401, detail="Authentication required")
-
+        def validate_permission(*args, **kwargs):
+            current_user = _require_current_user(args, kwargs)
             if not PermissionChecker.has_permission(current_user, permission):
                 raise HTTPException(status_code=403, detail="Insufficient permissions")
 
+        if inspect.iscoroutinefunction(func):
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                validate_permission(*args, **kwargs)
+                return await func(*args, **kwargs)
+
+            return async_wrapper
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            validate_permission(*args, **kwargs)
             return func(*args, **kwargs)
 
         return wrapper
@@ -251,23 +288,25 @@ def require_any_permission(*permissions: Permission):
     """Decorator to require any of the specified permissions."""
 
     def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            current_user = kwargs.get("current_user")
-            if not current_user:
-                for arg in args:
-                    if isinstance(arg, User):
-                        current_user = arg
-                        break
-
-            if not current_user:
-                raise HTTPException(status_code=401, detail="Authentication required")
-
+        def validate_permission(*args, **kwargs):
+            current_user = _require_current_user(args, kwargs)
             if not any(
-                PermissionChecker.has_permission(current_user, p) for p in permissions
+                PermissionChecker.has_permission(current_user, permission)
+                for permission in permissions
             ):
                 raise HTTPException(status_code=403, detail="Insufficient permissions")
 
+        if inspect.iscoroutinefunction(func):
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                validate_permission(*args, **kwargs)
+                return await func(*args, **kwargs)
+
+            return async_wrapper
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            validate_permission(*args, **kwargs)
             return func(*args, **kwargs)
 
         return wrapper

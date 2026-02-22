@@ -33,8 +33,11 @@ def create_rfid(
             raise APIException(status_code=404, detail="User not found")
 
         # Check if user can create for the target user
-        if not PermissionChecker.can_create_for_user(
-            current_user, target_user, Permission.RFIDS_CREATE_OTHER
+        if not PermissionChecker.can_create_for_user_with_scope(
+            current_user,
+            target_user,
+            Permission.RFIDS_CREATE_OWN,
+            Permission.RFIDS_CREATE_OTHER,
         ):
             raise APIException(
                 status_code=403, detail="Cannot create RFID for this user"
