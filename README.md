@@ -1,5 +1,12 @@
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
+## React Native Port
+
+A React Native (Expo) app now lives in `/mobile`.
+
+- Setup + run instructions: `/mobile/README.md`
+- Env template: `/mobile/.env.example`
+
 ## Getting Started
 
 First, run the development server:
