@@ -7,9 +7,10 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from src.api.exceptions import APIException
-from src.api.models import ApartmentResponse, PINCreate, User, UserUpdate
+from src.api.models import ApartmentResponse, PINCreate, RFIDCreate, User, UserUpdate
 from src.api.permissions import Permission, require_permission
 from src.api.routes import pins as pins_routes
+from src.api.routes import rfids as rfids_routes
 from src.api.routes import users as users_routes
 
 
@@ -122,6 +123,52 @@ class RBACRegressionTests(unittest.TestCase):
 
         self.assertEqual(result.user_id, 5)
         self.assertEqual(result.label, "my-pin")
+
+    def test_guest_can_create_own_pin(self):
+        current_user = make_user(9, "guest")
+        saved_pin = SimpleNamespace(
+            id=44,
+            label="guest-pin",
+            created_at=datetime.datetime(2025, 6, 2, 12, 0, 0),
+        )
+
+        with patch(
+            "src.api.routes.pins.random.choices", return_value=list("1234")
+        ), patch("src.api.routes.pins.db.get_all_pins", return_value=[]), patch(
+            "src.api.routes.pins.db.save_pin", return_value=saved_pin
+        ):
+            result = pins_routes.create_pin(
+                pin_request=PINCreate(label="guest-pin"),
+                current_user=current_user,
+            )
+
+        self.assertEqual(result.user_id, 9)
+        self.assertEqual(result.pin, "1234")
+
+    def test_guest_can_create_own_rfid(self):
+        current_user = SimpleNamespace(
+            id=10,
+            name="user-10",
+            email="user-10@example.com",
+            role="guest",
+            apartment_id=1,
+            apartment=SimpleNamespace(id=1, number="1", description=None),
+            is_active=True,
+        )
+        saved_rfid = SimpleNamespace(
+            id=55,
+            label="guest-tag",
+            created_at=datetime.datetime(2025, 6, 2, 12, 0, 0),
+        )
+
+        with patch("src.api.routes.rfids.db.save_rfid", return_value=saved_rfid):
+            result = rfids_routes.create_rfid(
+                rfid_request=RFIDCreate(uuid="a1b2c3d41234", label="guest-tag"),
+                current_user=current_user,
+            )
+
+        self.assertEqual(result["rfid"].user_id, 10)
+        self.assertEqual(result["rfid"].last_four_digits, "1234")
 
 
 if __name__ == "__main__":

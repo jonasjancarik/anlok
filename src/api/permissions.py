@@ -156,8 +156,10 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
     Role.GUEST: {
         # Guests - very limited permissions
         Permission.USERS_VIEW_OWN,
+        Permission.PINS_CREATE_OWN,
         Permission.PINS_VIEW_OWN,
         Permission.PINS_DELETE_OWN,
+        Permission.RFIDS_CREATE_OWN,
         Permission.RFIDS_VIEW_OWN,
         Permission.RFIDS_DELETE_OWN,
         Permission.API_KEYS_LIST_OWN,
