@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    command: sh -c "[ ! -f data.db ] && python setup.py; python api.py"
+    stdin_open: true
+    tty: true
+
+  # db:
+  #   image: sqlite:latest
+  #   volumes:
+  #     - ./data:/data
+
+networks:
+  default:
+    name: door-access-network
