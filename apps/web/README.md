@@ -1,11 +1,13 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Anlok Web
 
-## React Native Port
+Next.js web client for Anlok.
 
-A React Native (Expo) app now lives in `/mobile`.
+## Related App
 
-- Setup + run instructions: `/mobile/README.md`
-- Env template: `/mobile/.env.example`
+The Expo / React Native client now lives in `../app`.
+
+- Setup + run instructions: `../app/README.md`
+- Env template: `../app/.env.example`
 
 ## Getting Started
 

@@ -1,6 +1,6 @@
-# Door Control React Native App
+# Anlok App
 
-React Native (Expo) port of the door control web app.
+Expo / React Native client for Anlok.
 
 ## Setup
 
@@ -48,4 +48,4 @@ npm run android
 ## Notes
 
 - Uses `AsyncStorage` for token/user session persistence.
-- Uses same backend endpoints as web app.
+- Uses same backend endpoints as the web client.

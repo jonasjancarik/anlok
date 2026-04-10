@@ -1,5 +1,5 @@
 """
-Centralized permission system for the door-pin API.
+Centralized permission system for the access API.
 """
 
 from enum import Enum

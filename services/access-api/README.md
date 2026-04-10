@@ -1,8 +1,11 @@
-# door-pin
+# access-api
 
 Simple door lock system with PIN codes, RFID tags and remote unlocking using Raspberry PI.
 
-You can find the client web app under [door-control-web-app](https://github.com/jonasjancarik/door-control-web-app).
+Client apps in this monorepo:
+
+- web: `../../apps/web`
+- app: `../../apps/app`
 
 ## Hardware
 
@@ -141,7 +144,7 @@ Cloudflare Tunnels provide a secure way to expose your Raspberry PI to the inter
 3. **Create a tunnel:**
 
    ```bash
-   cloudflared tunnel create door-pin
+   cloudflared tunnel create access-api
    ```
 
    This creates a tunnel and generates a tunnel ID. Note down the tunnel ID for later use.
@@ -163,21 +166,21 @@ Cloudflare Tunnels provide a secure way to expose your Raspberry PI to the inter
 5. **Create a DNS record:**
 
    ```bash
-   cloudflared tunnel route dns door-pin door.yourdomain.com
+   cloudflared tunnel route dns access-api door.yourdomain.com
    ```
 
    Replace `door.yourdomain.com` with your desired subdomain.
 
 6. **Test the tunnel:**
 
-   Start your door-pin API server:
+   Start your access API server:
    ```bash
    uvicorn api:app --host 0.0.0.0 --port 8000
    ```
 
    In another terminal, start the tunnel:
    ```bash
-   cloudflared tunnel run door-pin
+   cloudflared tunnel run access-api
    ```
 
    Your API should now be accessible at `https://door.yourdomain.com`
@@ -194,7 +197,7 @@ Cloudflare Tunnels provide a secure way to expose your Raspberry PI to the inter
    [Service]
    Type=simple
    User=pi
-   ExecStart=/usr/local/bin/cloudflared tunnel run door-pin
+   ExecStart=/usr/local/bin/cloudflared tunnel run access-api
    Restart=always
    RestartSec=5
    KillMode=mixed

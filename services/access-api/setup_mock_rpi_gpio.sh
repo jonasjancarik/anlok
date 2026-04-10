@@ -51,4 +51,4 @@ def OUT():
 EOF
 
 echo "Dummy RPi package created successfully!"
-echo "You can now run the door-pin application in development mode." 
+echo "You can now run the access-api application in development mode."
