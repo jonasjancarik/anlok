@@ -28,6 +28,7 @@ export const RfidManagement = ({ token, user }: RfidManagementProps) => {
 
   const loadRfids = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const response = await api.get<RFID[]>(`/users/${user.id}/rfids`, {
         headers: authHeaders(token),
@@ -50,12 +51,12 @@ export const RfidManagement = ({ token, user }: RfidManagementProps) => {
     try {
       const response = await api.get<{ uuid: string }>('/rfids/read', {
         headers: authHeaders(token),
-        params: { timeout_seconds: 5 },
+        params: { timeout: 30 },
       });
       setUuid(response.data.uuid);
-      setSuccess('RFID read from scanner.');
+      setSuccess('RFID tag read successfully.');
     } catch (nextError) {
-      setError(apiErrorMessage(nextError, 'No RFID read from scanner.'));
+      setError(apiErrorMessage(nextError, 'Failed to read RFID tag.'));
     } finally {
       setReading(false);
     }
@@ -70,7 +71,7 @@ export const RfidManagement = ({ token, user }: RfidManagementProps) => {
         '/rfids',
         {
           uuid: uuid.trim(),
-          label: label.trim() || 'RFID',
+          label: label.trim() || undefined,
           user_id: user.id,
         },
         { headers: authHeaders(token) }
@@ -121,7 +122,7 @@ export const RfidManagement = ({ token, user }: RfidManagementProps) => {
 
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
         <Button title="Read from Scanner" onPress={readTag} loading={reading} />
-        <Button title="Add RFID" onPress={addRfid} disabled={!uuid.trim() || !label.trim()} />
+        <Button title="Add RFID" onPress={addRfid} disabled={!uuid.trim()} />
       </View>
 
       {error ? <Banner type="error" text={error} /> : null}
@@ -143,8 +144,8 @@ export const RfidManagement = ({ token, user }: RfidManagementProps) => {
                 gap: 6,
               }}
             >
-              <Text style={{ fontWeight: '700' }}>{item.label}</Text>
-              <SubtleText>****{item.last_four_digits}</SubtleText>
+              <Text style={{ fontWeight: '700' }}>{item.label || 'Unlabeled fob'}</Text>
+              <SubtleText>...{item.last_four_digits}</SubtleText>
               <SubtleText>Created: {new Date(item.created_at).toLocaleString()}</SubtleText>
               <Button title="Delete" variant="danger" onPress={() => deleteRfid(item.id)} />
             </View>

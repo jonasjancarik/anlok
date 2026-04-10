@@ -17,6 +17,8 @@ interface UserManagementProps {
 
 type ModalType = 'user' | 'pins' | 'rfid' | 'schedule' | null;
 
+const apartmentNumberForUser = (user: User) => user.apartment?.number ?? '';
+
 export const UserManagement = ({
   token,
   currentUser,
@@ -51,17 +53,23 @@ export const UserManagement = ({
         headers: authHeaders(token),
       });
 
+      const currentApartmentNumber = currentUser.apartment?.number ?? '';
       const filtered =
-        currentUser.role === 'admin'
+        currentUser.role === 'admin' || !currentApartmentNumber
           ? response.data
-          : response.data.filter((item) => item.apartment_id === currentUser.apartment_id);
+          : response.data.filter(
+              (item) => apartmentNumberForUser(item) === currentApartmentNumber
+            );
 
       const sorted = [...filtered].sort((a, b) => {
-        if (a.apartment_id === b.apartment_id) {
+        const apartmentA = apartmentNumberForUser(a);
+        const apartmentB = apartmentNumberForUser(b);
+
+        if (apartmentA === apartmentB) {
           return a.name.localeCompare(b.name);
         }
 
-        return a.apartment_id.localeCompare(b.apartment_id, undefined, {
+        return apartmentA.localeCompare(apartmentB, undefined, {
           numeric: true,
           sensitivity: 'base',
         });
@@ -73,7 +81,7 @@ export const UserManagement = ({
     } finally {
       setLoading(false);
     }
-  }, [token, currentUser.role, currentUser.apartment_id]);
+  }, [token, currentUser.role, currentUser.apartment?.number]);
 
   useEffect(() => {
     loadApartments();
@@ -91,7 +99,7 @@ export const UserManagement = ({
     const usersByApartment = new Map<string, User[]>();
 
     users.forEach((item) => {
-      const apartmentNumber = item.apartment?.number ?? item.apartment_id;
+      const apartmentNumber = apartmentNumberForUser(item) || 'Unknown';
       const group = usersByApartment.get(apartmentNumber) ?? [];
       group.push(item);
       usersByApartment.set(apartmentNumber, group);
@@ -164,7 +172,7 @@ export const UserManagement = ({
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
         <Button title="Add User" onPress={() => openModal('user', null)} />
         <SubtleText>
-          Visible apartments: {currentUser.role === 'admin' ? 'all' : currentUser.apartment_id}
+          Visible apartments: {currentUser.role === 'admin' ? 'all' : currentUser.apartment?.number ?? 'current'}
         </SubtleText>
       </View>
 

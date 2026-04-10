@@ -1,5 +1,5 @@
 export const dayLabel = (day: number) => {
-  const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const labels = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   return labels[day] ?? `Day ${day}`;
 };
 

@@ -4,7 +4,7 @@ export interface User {
   email?: string;
   role: 'admin' | 'apartment_admin' | 'guest';
   creator_id: number;
-  apartment_id: string;
+  apartment_id?: number;
   is_active: boolean;
   apartment?: Apartment;
   recurring_schedules?: RecurringSchedule[];
@@ -15,6 +15,7 @@ export interface PIN {
   id: number;
   label: string;
   created_at: string;
+  pin?: string;
 }
 
 export interface RFID {
@@ -67,5 +68,5 @@ export interface AuthTokenResponse {
 
 export interface GuestSchedulesResponse {
   recurring_schedules: RecurringSchedule[];
-  one_time_accesses: OneTimeAccess[];
+  one_time_access: OneTimeAccess[];
 }

@@ -43,13 +43,16 @@ export const UserForm = ({
   const isEditing = !!targetUser;
   const canEditRole = currentUser.role === 'admin';
   const canEditApartment = currentUser.role === 'admin';
+  const currentApartmentNumber = currentUser.apartment?.number ?? '';
+  const isSelfDowngrade =
+    currentUser.id === targetUser?.id && currentUser.role === 'admin' && role !== 'admin';
 
   useEffect(() => {
     setName(targetUser?.name ?? '');
     setEmail(targetUser?.email ?? '');
-    setApartmentNumber(targetUser?.apartment_id ?? currentUser.apartment_id ?? '');
+    setApartmentNumber(targetUser?.apartment?.number ?? currentApartmentNumber);
     setRole(targetUser?.role ?? 'guest');
-  }, [targetUser, currentUser.apartment_id]);
+  }, [targetUser, currentApartmentNumber]);
 
   useEffect(() => {
     const fetchApartments = async () => {
@@ -68,14 +71,14 @@ export const UserForm = ({
 
   const availableApartments = useMemo(() => {
     if (!canEditApartment) {
-      const ownApartment = apartments.find((apartment) => apartment.number === currentUser.apartment_id);
+      const ownApartment = apartments.find((apartment) => apartment.number === currentApartmentNumber);
       return ownApartment ? [ownApartment] : apartments;
     }
 
     return apartments;
-  }, [apartments, canEditApartment, currentUser.apartment_id]);
+  }, [apartments, canEditApartment, currentApartmentNumber]);
 
-  const save = async () => {
+  const performSave = async () => {
     setError('');
     setStatus('');
     setSaving(true);
@@ -83,8 +86,8 @@ export const UserForm = ({
     try {
       const payload = {
         name: name.trim(),
-        email: email.trim() ? email.trim() : undefined,
-        apartment_id: apartmentNumber,
+        email: email.trim(),
+        apartment: { number: apartmentNumber },
         role,
       };
 
@@ -107,6 +110,28 @@ export const UserForm = ({
     } finally {
       setSaving(false);
     }
+  };
+
+  const save = () => {
+    if (!isSelfDowngrade) {
+      void performSave();
+      return;
+    }
+
+    Alert.alert(
+      'Warning: Role Downgrade',
+      'You are about to downgrade your own admin role. This cannot be reversed without another admin or direct database access.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Downgrade',
+          style: 'destructive',
+          onPress: () => {
+            void performSave();
+          },
+        },
+      ]
+    );
   };
 
   const confirmDelete = () => {
@@ -220,7 +245,7 @@ export const UserForm = ({
       </Horizontal>
 
       {onCancel ? <Button title="Close" variant="ghost" onPress={onCancel} /> : null}
-      {currentUser.id === targetUser?.id && currentUser.role === 'admin' && role !== 'admin' ? (
+      {isSelfDowngrade ? (
         <Text style={{ color: '#92400e', fontSize: 12 }}>
           Admin self-downgrade will remove admin rights after save.
         </Text>

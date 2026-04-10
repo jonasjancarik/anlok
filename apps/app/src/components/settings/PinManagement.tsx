@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Text, View } from 'react-native';
 import { api, apiErrorMessage, authHeaders } from '../../lib/api';
+import { REQUIRED_PIN_LENGTH } from '../../lib/config';
 import { PIN, User } from '../../types/entities';
 import {
   Banner,
@@ -18,21 +19,42 @@ interface PinManagementProps {
 }
 
 const weakPins = new Set([
-  '0000',
-  '1111',
   '1234',
-  '4321',
-  '1212',
-  '9999',
-  '2580',
+  '0000',
+  '7777',
+  '2000',
   '2222',
+  '9999',
+  '5555',
+  '1122',
+  '8888',
+  '2001',
+  '1111',
+  '1212',
+  '1004',
+  '4444',
+  '6969',
   '3333',
+  '6666',
+  '1313',
+  '4321',
+  '1010',
 ]);
+
+const unsafePinPatterns = [
+  { regex: new RegExp(`^(${[...weakPins].join('|')})$`), reason: 'commonly used PIN' },
+  { regex: /^(0123|1234|2345|3456|4567|5678|6789|7890)$/, reason: 'consecutive numbers' },
+  { regex: /^(9876|8765|7654|6543|5432|4321|3210)$/, reason: 'reverse consecutive numbers' },
+  { regex: /^(1379|1397|2468|2486)$/, reason: 'common keyboard pattern' },
+  { regex: /^(19|20)\d{2}$/, reason: 'common year of birth' },
+  { regex: /^(.)\1{3}$/, reason: 'repeated digits' },
+];
 
 export const PinManagement = ({ token, user }: PinManagementProps) => {
   const [pins, setPins] = useState<PIN[]>([]);
   const [pin, setPin] = useState('');
   const [label, setLabel] = useState('');
+  const [generatedPin, setGeneratedPin] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -40,23 +62,31 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
   const needsPinInput = user.role !== 'guest';
 
   const pinFeedback = useMemo(() => {
-    if (!pin) {
+    const sanitizedPin = pin.trim();
+
+    if (!needsPinInput || !sanitizedPin) {
       return '';
     }
 
-    if (!/^\d{4,8}$/.test(pin)) {
-      return 'PIN should be 4-8 digits.';
+    if (sanitizedPin.length !== REQUIRED_PIN_LENGTH) {
+      return `PIN must be exactly ${REQUIRED_PIN_LENGTH} digits.`;
     }
 
-    if (weakPins.has(pin)) {
-      return 'Weak PIN. Pick a less predictable one.';
+    if (!/^\d+$/.test(sanitizedPin)) {
+      return 'PIN must contain only digits.';
+    }
+
+    const matchedPattern = unsafePinPatterns.find((pattern) => pattern.regex.test(sanitizedPin));
+    if (matchedPattern) {
+      return `This PIN is not allowed: ${matchedPattern.reason}.`;
     }
 
     return '';
-  }, [pin]);
+  }, [needsPinInput, pin]);
 
   const loadPins = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const response = await api.get<PIN[]>(`/users/${user.id}/pins`, {
         headers: authHeaders(token),
@@ -76,6 +106,7 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
   const addPin = async () => {
     setError('');
     setSuccess('');
+    setGeneratedPin(null);
 
     if (needsPinInput && pinFeedback) {
       setError(pinFeedback);
@@ -83,11 +114,11 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
     }
 
     try {
-      await api.post(
+      const response = await api.post<PIN>(
         '/pins',
         {
           user_id: user.id,
-          label: label.trim() || 'PIN',
+          label: label.trim() || undefined,
           pin: needsPinInput ? pin.trim() : undefined,
         },
         { headers: authHeaders(token) }
@@ -95,7 +126,12 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
 
       setPin('');
       setLabel('');
-      setSuccess('PIN added.');
+      if (!needsPinInput && response.data.pin) {
+        setGeneratedPin(response.data.pin);
+        setSuccess('PIN generated successfully.');
+      } else {
+        setSuccess('PIN added.');
+      }
       await loadPins();
     } catch (nextError) {
       setError(apiErrorMessage(nextError, 'Failed to add PIN.'));
@@ -140,7 +176,7 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
             secureTextEntry
             value={pin}
             onChangeText={setPin}
-            placeholder="4-8 digits"
+            placeholder={`Enter ${REQUIRED_PIN_LENGTH}-digit PIN`}
           />
           {pinFeedback ? <Banner type="info" text={pinFeedback} /> : null}
         </View>
@@ -151,9 +187,10 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
       <Button
         title="Add PIN"
         onPress={addPin}
-        disabled={!label.trim() || (needsPinInput && !pin.trim())}
+        disabled={needsPinInput ? !pin.trim() || !!pinFeedback : false}
       />
 
+      {generatedPin ? <Banner type="info" text={`Generated PIN: ${generatedPin}`} /> : null}
       {error ? <Banner type="error" text={error} /> : null}
       {success ? <Banner type="success" text={success} /> : null}
 
@@ -174,6 +211,7 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
               }}
             >
               <Text style={{ fontWeight: '700' }}>{item.label}</Text>
+              <SubtleText>PIN: ****</SubtleText>
               <SubtleText>Created: {new Date(item.created_at).toLocaleString()}</SubtleText>
               <Button title="Delete" variant="danger" onPress={() => deletePin(item.id)} />
             </View>

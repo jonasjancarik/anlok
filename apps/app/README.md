@@ -21,6 +21,7 @@ Required keys:
 - `EXPO_PUBLIC_API_URL`
 - `EXPO_PUBLIC_APP_TITLE` (optional)
 - `EXPO_PUBLIC_APP_SUBTITLE` (optional)
+- `EXPO_PUBLIC_REQUIRED_PIN_LENGTH` (optional, defaults to `4`)
 
 API URL notes:
 - iOS simulator: `http://localhost:8000`
