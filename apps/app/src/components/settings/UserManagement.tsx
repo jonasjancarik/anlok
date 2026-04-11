@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { Modal, Text, View } from 'react-native';
 import { api, apiErrorMessage, authHeaders } from '../../lib/api';
 import { Apartment, User } from '../../types/entities';
-import { Banner, Button, Chip, Divider, PageScroll, Screen, SectionCard, SubtleText } from '../common/ui';
+import { Banner, Button, Chip, Divider, PageScroll, Screen, SectionCard, SubtleText, palette } from '../common/ui';
 import { Feather } from '@expo/vector-icons';
 import { PinManagement } from './PinManagement';
 import { RfidManagement } from './RfidManagement';
@@ -171,10 +171,12 @@ export const UserManagement = ({
   return (
     <SectionCard title="Users">
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-        <Button title="Add User" onPress={() => openModal('user', null)} />
-        <SubtleText>
-          Visible apartments: {currentUser.role === 'admin' ? 'all' : currentUser.apartment?.number ?? 'current'}
-        </SubtleText>
+        <Button title="Add User" size="small" icon={<Feather name="plus" size={14} color="#fff" />} onPress={() => openModal('user', null)} />
+        <View style={{ flex: 1, alignItems: 'flex-end', justifyContent: 'center' }}>
+          <SubtleText style={{ fontSize: 12 }}>
+            Apartments: {currentUser.role === 'admin' ? 'All' : currentUser.apartment?.number ?? 'Current'}
+          </SubtleText>
+        </View>
       </View>
 
       {success ? <Banner type="success" text={success} /> : null}
@@ -184,49 +186,50 @@ export const UserManagement = ({
       {groupedUsers.length === 0 ? (
         <SubtleText>{loading ? 'Loading users...' : 'No users found.'}</SubtleText>
       ) : (
-        <View style={{ gap: 12 }}>
+        <View style={{ gap: 16 }}>
           {groupedUsers.map(([apartmentNumber, apartmentUsers]) => (
             <View key={apartmentNumber} style={{ gap: 8 }}>
-              <Text style={{ fontWeight: '700', fontSize: 16 }}>Apartment {apartmentNumber}</Text>
-              {apartmentUsers.map((item) => (
+              <View style={{ backgroundColor: palette.canvas, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, alignSelf: 'flex-start' }}>
+                <Text style={{ fontWeight: '800', fontSize: 14, color: palette.muted }}>Apartment {apartmentNumber}</Text>
+              </View>
+              
+              {apartmentUsers.map((item, index) => (
                 <View
                   key={item.id}
                   style={{
-                    borderWidth: 1,
-                    borderColor: '#d2dbf0',
-                    borderRadius: 10,
-                    padding: 10,
-                    gap: 6,
-                    opacity: item.is_active ? 1 : 0.55,
+                    paddingVertical: 12,
+                    borderBottomWidth: index === apartmentUsers.length - 1 ? 0 : 1,
+                    borderBottomColor: palette.canvas,
+                    gap: 10,
+                    opacity: item.is_active ? 1 : 0.5,
                   }}
                 >
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Text style={{ fontWeight: '700', fontSize: 15 }}>{item.name}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View>
+                      <Text style={{ fontWeight: '700', fontSize: 16, color: palette.text }}>{item.name}</Text>
+                      <SubtleText style={{ fontSize: 13 }}>{item.email || 'No email'}</SubtleText>
+                    </View>
                     <Chip text={item.role} tone={roleColor(item.role)} />
                   </View>
-                  <SubtleText>{item.email || 'No email'}</SubtleText>
-                  <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                    <Button size="small" title="Edit" variant="secondary" onPress={() => openModal('user', item)} />
-                    <Button size="small" title="PINs" variant="secondary" onPress={() => openModal('pins', item)} />
-                    <Button size="small" title="RFIDs" variant="secondary" onPress={() => openModal('rfid', item)} />
+                  
+                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                    <Button size="small" title="Edit" variant="secondary" icon={<Feather name="edit-2" size={12} color={palette.text} />} onPress={() => openModal('user', item)} />
+                    <Button size="small" title="PINs" variant="secondary" icon={<Feather name="grid" size={12} color={palette.text} />} onPress={() => openModal('pins', item)} />
+                    <Button size="small" title="RFIDs" variant="secondary" icon={<Feather name="radio" size={12} color={palette.text} />} onPress={() => openModal('rfid', item)} />
                     {item.role === 'guest' ? (
                       <Button
                         size="small"
                         title="Schedule"
                         variant="secondary"
+                        icon={<Feather name="clock" size={12} color={palette.text} />}
                         onPress={() => openModal('schedule', item)}
                       />
                     ) : null}
                     <Button
                       size="small"
-                      title={item.is_active ? 'Deactivate' : 'Activate'}
-                      variant={item.is_active ? 'danger' : 'primary'}
+                      title={item.is_active ? 'Disable' : 'Enable'}
+                      variant={item.is_active ? 'ghost' : 'secondary'}
+                      icon={<Feather name={item.is_active ? 'slash' : 'check'} size={12} color={item.is_active ? palette.danger : palette.text} />}
                       disabled={currentUser.role === 'apartment_admin' && item.role === 'admin'}
                       onPress={() => toggleUserActive(item)}
                     />
@@ -239,21 +242,16 @@ export const UserManagement = ({
       )}
 
       <Modal visible={modalType !== null} animationType="slide" onRequestClose={closeModal}>
-        <View style={{ flex: 1, backgroundColor: '#f4f7ff' }}>
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 40 }}>
-            <Pressable
+        <Screen>
+          <PageScroll>
+            <Button
+              title=""
+              icon={<Feather name="x" size={24} color={palette.muted} />}
+              variant="ghost"
+              size="icon"
               onPress={closeModal}
-              style={{
-                alignSelf: 'flex-start',
-                borderWidth: 1,
-                borderColor: '#d2dbf0',
-                borderRadius: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-              }}
-            >
-              <Text style={{ fontWeight: '700' }}>Close</Text>
-            </Pressable>
+              style={{ alignSelf: 'flex-start', marginBottom: 8, marginLeft: -8 }}
+            />
 
             {modalType === 'user' ? (
               <UserForm
@@ -276,11 +274,11 @@ export const UserManagement = ({
             {modalType === 'schedule' && selectedUser ? (
               <ScheduleManagement token={token} user={selectedUser} />
             ) : null}
-          </ScrollView>
-        </View>
+          </PageScroll>
+        </Screen>
       </Modal>
 
-      {apartments.length === 0 ? null : <SubtleText>Total apartments: {apartments.length}</SubtleText>}
+      {apartments.length === 0 ? null : <SubtleText style={{ marginTop: 12, textAlign: 'center', fontSize: 12 }}>Total apartments configured: {apartments.length}</SubtleText>}
     </SectionCard>
   );
 };

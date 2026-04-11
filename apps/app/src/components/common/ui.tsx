@@ -9,6 +9,8 @@ import {
   Text,
   TextInput,
   TextInputProps,
+  TextProps,
+  TextStyle,
   View,
   ViewStyle,
 } from 'react-native';
@@ -99,8 +101,8 @@ export const Banner = ({
   );
 };
 
-export const FieldLabel = ({ children }: { children: React.ReactNode }) => (
-  <Text style={styles.label}>{children}</Text>
+export const FieldLabel = ({ children, style }: { children: React.ReactNode, style?: StyleProp<TextStyle> }) => (
+  <Text style={[styles.label, style as any]}>{children}</Text>
 );
 
 export const Input = (props: TextInputProps) => (

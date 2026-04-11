@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Text, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { api, apiErrorMessage, authHeaders } from '../../lib/api';
 import { dayLabel } from '../../lib/time';
 import { GuestSchedulesResponse, OneTimeAccess, RecurringSchedule, User } from '../../types/entities';
@@ -12,6 +13,7 @@ import {
   Row,
   SectionCard,
   SubtleText,
+  palette,
 } from '../common/ui';
 
 interface ScheduleManagementProps {
@@ -173,29 +175,32 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
   };
 
   return (
-    <SectionCard title={`Schedules: ${user.name}`}>
-      <SubtleText>Guest schedule management.</SubtleText>
-      <Row>
+    <SectionCard title="Manage Schedules">
+      <Row style={{ backgroundColor: palette.canvas, padding: 4, borderRadius: 12 }}>
         <Button
-          title="Recurring Schedule"
-          variant={tab === 'recurring' ? 'primary' : 'secondary'}
+          title="Recurring"
+          size="small"
+          variant={tab === 'recurring' ? 'primary' : 'ghost'}
           onPress={() => setTab('recurring')}
+          style={{ flexGrow: 1 }}
         />
         <Button
-          title="One-Time Access"
-          variant={tab === 'oneTime' ? 'primary' : 'secondary'}
+          title="One-Time"
+          size="small"
+          variant={tab === 'oneTime' ? 'primary' : 'ghost'}
           onPress={() => setTab('oneTime')}
+          style={{ flexGrow: 1 }}
         />
       </Row>
+
       {error ? <Banner type="error" text={error} /> : null}
       {success ? <Banner type="success" text={success} /> : null}
 
-      <Divider />
       {tab === 'recurring' ? (
         <>
-          <View style={{ gap: 6 }}>
+          <View style={{ gap: 6, marginTop: 8 }}>
             <FieldLabel>Day of Week</FieldLabel>
-            <Row>
+            <Row style={{ gap: 6 }}>
               {dayOptions.map((label, index) => (
                 <Button
                   key={label}
@@ -203,47 +208,70 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
                   size="small"
                   variant={dayOfWeek === String(index) ? 'primary' : 'secondary'}
                   onPress={() => setDayOfWeek(String(index))}
+                  style={{ paddingHorizontal: 10, minHeight: 32 }}
                 />
               ))}
             </Row>
-            <FieldLabel>Time Range</FieldLabel>
-            <Input
-              value={recurringStartTime}
-              onChangeText={setRecurringStartTime}
-              placeholder="Start time HH:mm"
+            
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+              <View style={{ flex: 1, gap: 6 }}>
+                <FieldLabel>Start Time</FieldLabel>
+                <Input
+                  value={recurringStartTime}
+                  onChangeText={setRecurringStartTime}
+                  placeholder="HH:mm"
+                />
+              </View>
+              <View style={{ flex: 1, gap: 6 }}>
+                <FieldLabel>End Time</FieldLabel>
+                <Input
+                  value={recurringEndTime}
+                  onChangeText={setRecurringEndTime}
+                  placeholder="HH:mm"
+                />
+              </View>
+            </View>
+            <Button 
+              title="Add Schedule" 
+              size="small"
+              icon={<Feather name="plus" size={14} color="#fff" />}
+              onPress={addRecurring} 
+              style={{ alignSelf: 'flex-start', marginTop: 8 }}
             />
-            <Input
-              value={recurringEndTime}
-              onChangeText={setRecurringEndTime}
-              placeholder="End time HH:mm"
-            />
-            <Button title="Add Schedule" onPress={addRecurring} />
           </View>
 
           <Divider />
-          <FieldLabel>Recurring Schedules</FieldLabel>
+          <FieldLabel style={{ marginTop: 8 }}>Active Schedules</FieldLabel>
           {recurring.length === 0 ? (
-            <SubtleText>{loading ? 'Loading...' : 'No recurring schedules.'}</SubtleText>
+            <SubtleText>{loading ? 'Loading...' : 'No recurring schedules configured.'}</SubtleText>
           ) : (
-            <View style={{ gap: 8 }}>
-              {recurring.map((item) => (
+            <View style={{ gap: 0 }}>
+              {recurring.map((item, index) => (
                 <View
                   key={item.id}
                   style={{
-                    borderWidth: 1,
-                    borderColor: '#d2dbf0',
-                    borderRadius: 10,
-                    padding: 10,
-                    gap: 6,
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingVertical: 12,
+                    borderBottomWidth: index === recurring.length - 1 ? 0 : 1,
+                    borderBottomColor: palette.canvas,
                   }}
                 >
-                  <Text style={{ fontWeight: '700' }}>{dayLabel(item.day_of_week)}</Text>
-                  <SubtleText>
-                    {formatTime(item.start_time)} - {formatTime(item.end_time)}
-                  </SubtleText>
+                  <View>
+                    <Text style={{ fontWeight: '700', fontSize: 15, color: palette.text, marginBottom: 2 }}>{dayLabel(item.day_of_week)}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Feather name="clock" size={12} color={palette.muted} />
+                      <SubtleText style={{ fontSize: 13 }}>
+                        {formatTime(item.start_time)} to {formatTime(item.end_time)}
+                      </SubtleText>
+                    </View>
+                  </View>
                   <Button
-                    title="Delete"
-                    variant="danger"
+                    size="icon"
+                    title=""
+                    variant="ghost"
+                    icon={<Feather name="trash-2" size={16} color={palette.danger} />}
                     onPress={() => deleteRecurring(item.id)}
                   />
                 </View>
@@ -253,63 +281,90 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
         </>
       ) : (
         <>
-          <View style={{ gap: 6 }}>
-            <FieldLabel>Date Range</FieldLabel>
-            <Input
-              value={oneStartDate}
-              onChangeText={handleStartDateChange}
-              placeholder={today}
-            />
-            <Input
-              value={oneEndDate}
-              onChangeText={handleEndDateChange}
-              placeholder={today}
-            />
-            <FieldLabel>Time Range</FieldLabel>
-            <Input
-              value={oneStartTime}
-              onChangeText={setOneStartTime}
-              placeholder="Start time HH:mm"
-            />
-            <Input
-              value={oneEndTime}
-              onChangeText={setOneEndTime}
-              placeholder="End time HH:mm"
-            />
+          <View style={{ gap: 6, marginTop: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1, gap: 6 }}>
+                <FieldLabel>Start Date</FieldLabel>
+                <Input
+                  value={oneStartDate}
+                  onChangeText={handleStartDateChange}
+                  placeholder={today}
+                />
+              </View>
+              <View style={{ flex: 1, gap: 6 }}>
+                <FieldLabel>End Date</FieldLabel>
+                <Input
+                  value={oneEndDate}
+                  onChangeText={handleEndDateChange}
+                  placeholder={today}
+                />
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
+              <View style={{ flex: 1, gap: 6 }}>
+                <FieldLabel>Start Time</FieldLabel>
+                <Input
+                  value={oneStartTime}
+                  onChangeText={setOneStartTime}
+                  placeholder="09:00"
+                />
+              </View>
+              <View style={{ flex: 1, gap: 6 }}>
+                <FieldLabel>End Time</FieldLabel>
+                <Input
+                  value={oneEndTime}
+                  onChangeText={setOneEndTime}
+                  placeholder="17:00"
+                />
+              </View>
+            </View>
             <Button
               title="Add Access"
+              size="small"
+              icon={<Feather name="plus" size={14} color="#fff" />}
               onPress={addOneTime}
               disabled={!oneStartDate || !oneEndDate}
+              style={{ alignSelf: 'flex-start', marginTop: 8 }}
             />
           </View>
 
           <Divider />
-          <FieldLabel>One-Time Access</FieldLabel>
+          <FieldLabel style={{ marginTop: 8 }}>Active Accesses</FieldLabel>
           {oneTime.length === 0 ? (
-            <SubtleText>{loading ? 'Loading...' : 'No one-time accesses.'}</SubtleText>
+            <SubtleText>{loading ? 'Loading...' : 'No one-time accesses configured.'}</SubtleText>
           ) : (
-            <View style={{ gap: 8 }}>
-              {oneTime.map((item) => (
+            <View style={{ gap: 0 }}>
+              {oneTime.map((item, index) => (
                 <View
                   key={item.id}
                   style={{
-                    borderWidth: 1,
-                    borderColor: '#d2dbf0',
-                    borderRadius: 10,
-                    padding: 10,
-                    gap: 6,
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingVertical: 12,
+                    borderBottomWidth: index === oneTime.length - 1 ? 0 : 1,
+                    borderBottomColor: palette.canvas,
                   }}
                 >
-                  <Text style={{ fontWeight: '700' }}>
-                    {item.start_date} {'->'} {item.end_date}
-                  </Text>
-                  <SubtleText>
-                    {formatTime(item.start_time)} - {formatTime(item.end_time)}
-                  </SubtleText>
+                  <View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <Feather name="calendar" size={12} color={palette.primary} />
+                      <Text style={{ fontWeight: '700', fontSize: 14, color: palette.text }}>
+                        {item.start_date} to {item.end_date}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Feather name="clock" size={12} color={palette.muted} />
+                      <SubtleText style={{ fontSize: 13 }}>
+                        {formatTime(item.start_time)} to {formatTime(item.end_time)}
+                      </SubtleText>
+                    </View>
+                  </View>
                   <Button
-                    size="small"
-                    title="Delete"
-                    variant="danger"
+                    size="icon"
+                    title=""
+                    variant="ghost"
+                    icon={<Feather name="trash-2" size={16} color={palette.danger} />}
                     onPress={() => deleteOneTime(item.id)}
                   />
                 </View>

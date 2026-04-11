@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Text, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { api, apiErrorMessage, authHeaders } from '../../lib/api';
 import { Apartment } from '../../types/entities';
 import {
@@ -10,6 +11,7 @@ import {
   Input,
   SectionCard,
   SubtleText,
+  palette,
 } from '../common/ui';
 
 interface ApartmentManagementProps {
@@ -127,13 +129,15 @@ export const ApartmentManagement = ({ token }: ApartmentManagementProps) => {
         />
       </View>
 
-      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
         <Button
+          size="small"
+          icon={<Feather name={selected ? "save" : "plus"} size={14} color="#fff" />}
           title={selected ? 'Update Apartment' : 'Create Apartment'}
           onPress={saveApartment}
           disabled={!number.trim()}
         />
-        {selected ? <Button title="Cancel Edit" variant="ghost" onPress={resetForm} /> : null}
+        {selected ? <Button size="small" title="Cancel Edit" variant="ghost" onPress={resetForm} /> : null}
       </View>
 
       {success ? <Banner type="success" text={success} /> : null}
@@ -143,26 +147,33 @@ export const ApartmentManagement = ({ token }: ApartmentManagementProps) => {
       {apartments.length === 0 ? (
         <SubtleText>{loading ? 'Loading apartments...' : 'No apartments found.'}</SubtleText>
       ) : (
-        <View style={{ gap: 8 }}>
-          {apartments.map((apartment) => (
+        <View style={{ gap: 0 }}>
+          {apartments.map((apartment, index) => (
             <View
               key={apartment.id}
               style={{
-                borderWidth: 1,
-                borderColor: selected?.id === apartment.id ? '#1d4ed8' : '#d2dbf0',
-                borderRadius: 10,
-                padding: 10,
-                gap: 6,
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                paddingVertical: 12,
+                borderBottomWidth: index === apartments.length - 1 ? 0 : 1,
+                borderBottomColor: palette.canvas,
+                backgroundColor: selected?.id === apartment.id ? '#F8FAFC' : 'transparent',
+                borderRadius: selected?.id === apartment.id ? 8 : 0,
+                paddingHorizontal: selected?.id === apartment.id ? 8 : 0,
               }}
             >
-              <Text style={{ fontWeight: '700' }}>Apartment {apartment.number}</Text>
-              <SubtleText>{apartment.description || 'No description'}</SubtleText>
-              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                <Button size="small" title="Edit" variant="secondary" onPress={() => editApartment(apartment)} />
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={{ fontWeight: '700', fontSize: 15, color: palette.text, marginBottom: 2 }}>Apartment {apartment.number}</Text>
+                <SubtleText style={{ fontSize: 13 }}>{apartment.description || 'No description'}</SubtleText>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <Button size="icon" title="" variant="secondary" icon={<Feather name="edit-2" size={14} color={palette.text} />} onPress={() => editApartment(apartment)} />
                 <Button
-                  size="small"
-                  title="Delete"
-                  variant="danger"
+                  size="icon"
+                  title=""
+                  variant="ghost"
+                  icon={<Feather name="trash-2" size={14} color={palette.danger} />}
                   onPress={() => removeApartment(apartment)}
                 />
               </View>

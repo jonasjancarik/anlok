@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Text, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { api, apiErrorMessage, authHeaders } from '../../lib/api';
 import { ApiKey } from '../../types/entities';
 import {
@@ -11,6 +12,7 @@ import {
   Input,
   SectionCard,
   SubtleText,
+  palette,
 } from '../common/ui';
 
 interface ApiKeyManagementProps {
@@ -99,62 +101,72 @@ export const ApiKeyManagement = ({ token, userId }: ApiKeyManagementProps) => {
         <Input
           value={description}
           onChangeText={setDescription}
-          placeholder="Door unlock integration"
+          placeholder="e.g. Home Assistant integration"
         />
       </View>
       <Button
         title="Create API Key"
+        size="small"
+        icon={<Feather name="plus" size={14} color="#fff" />}
         onPress={createKey}
         disabled={!description.trim()}
         loading={loading}
+        style={{ alignSelf: 'flex-start', marginTop: 4 }}
       />
 
       {newKey ? (
         <View
           style={{
             borderWidth: 1,
-            borderColor: '#bfdbfe',
-            backgroundColor: '#eff6ff',
+            borderColor: palette.border,
+            backgroundColor: palette.canvas,
             borderRadius: 10,
-            padding: 10,
+            padding: 16,
             gap: 8,
           }}
         >
-          <Text style={{ fontWeight: '700', color: '#1e3a8a' }}>Copy your API key now</Text>
+          <Text style={{ fontWeight: '700', color: palette.text }}>Copy your API key now</Text>
           <SubtleText>The full key is only shown once after creation.</SubtleText>
-          <Input value={newKey} editable={false} />
-          <Button title="Hide Full Key" variant="ghost" onPress={() => setNewKey(null)} />
+          <Input value={newKey} editable={false} style={{ backgroundColor: '#fff' }} />
+          <Button size="small" title="Dismiss" variant="secondary" onPress={() => setNewKey(null)} />
         </View>
       ) : null}
-      {success ? <Banner type="success" text={success} /> : null}
+      
+      {success && !newKey ? <Banner type="success" text={success} /> : null}
       {error ? <Banner type="error" text={error} /> : null}
 
       <Divider />
       {apiKeys.length === 0 ? (
-        <SubtleText>{loading ? 'Loading keys...' : 'No API keys.'}</SubtleText>
+        <SubtleText>{loading ? 'Loading keys...' : 'No API keys configured.'}</SubtleText>
       ) : (
-        <View style={{ gap: 8 }}>
-          {apiKeys.map((apiKey) => (
+        <View style={{ gap: 0 }}>
+          {apiKeys.map((apiKey, index) => (
             <View
               key={apiKey.key_suffix}
               style={{
-                borderWidth: 1,
-                borderColor: '#d2dbf0',
-                borderRadius: 10,
-                padding: 10,
-                gap: 6,
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingVertical: 12,
+                borderBottomWidth: index === apiKeys.length - 1 ? 0 : 1,
+                borderBottomColor: palette.canvas,
               }}
             >
-              <Text style={{ fontWeight: '700' }}>...{apiKey.key_suffix}</Text>
-              <SubtleText>{apiKey.description || 'No description'}</SubtleText>
-              <Chip text={apiKey.is_active ? 'Active' : 'Inactive'} tone={apiKey.is_active ? 'success' : 'danger'} />
-              <SubtleText>
-                Created: {new Date(apiKey.created_at).toLocaleString()}
-              </SubtleText>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <Text style={{ fontWeight: '700', fontSize: 15, color: palette.text }}>
+                    ...{apiKey.key_suffix}
+                  </Text>
+                  <Chip text={apiKey.is_active ? 'Active' : 'Inactive'} tone={apiKey.is_active ? 'success' : 'danger'} />
+                </View>
+                <SubtleText style={{ fontSize: 13, marginBottom: 2 }}>{apiKey.description || 'No description'}</SubtleText>
+                <SubtleText style={{ fontSize: 12 }}>Created: {new Date(apiKey.created_at).toLocaleDateString()}</SubtleText>
+              </View>
               <Button
-                size="small"
-                title="Delete"
-                variant="danger"
+                size="icon"
+                title=""
+                variant="ghost"
+                icon={<Feather name="trash-2" size={16} color={palette.danger} />}
                 onPress={() => deleteKey(apiKey.key_suffix)}
               />
             </View>

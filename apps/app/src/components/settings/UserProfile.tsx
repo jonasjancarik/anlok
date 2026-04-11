@@ -1,7 +1,9 @@
 import React from 'react';
+import { View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { User } from '../../types/entities';
-import { Button, Divider, SectionCard, SubtleText } from '../common/ui';
+import { Button, SectionCard } from '../common/ui';
 import { ApiKeyManagement } from './ApiKeyManagement';
 import { UserForm } from './UserForm';
 
@@ -20,19 +22,21 @@ export const UserProfile = ({ token, user }: UserProfileProps) => {
   };
 
   return (
-    <SectionCard title="Profile">
-      <SubtleText>Edit account profile and credentials.</SubtleText>
+    <View style={{ gap: 16 }}>
       <UserForm token={token} currentUser={user} targetUser={user} onSuccess={handleSelfSave} />
 
       {user.role === 'admin' ? (
-        <>
-          <Divider />
-          <ApiKeyManagement token={token} userId={user.id} />
-        </>
+        <ApiKeyManagement token={token} userId={user.id} />
       ) : null}
 
-      <Divider />
-      <Button title="Logout" variant="danger" onPress={() => void logout()} />
-    </SectionCard>
+      <SectionCard>
+        <Button 
+          title="Sign Out" 
+          variant="danger" 
+          icon={<Feather name="log-out" size={16} color="#fff" />}
+          onPress={() => void logout()} 
+        />
+      </SectionCard>
+    </View>
   );
 };
