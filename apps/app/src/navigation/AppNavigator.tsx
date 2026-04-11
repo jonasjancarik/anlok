@@ -5,7 +5,9 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { useServerConfig } from '../contexts/ServerConfigContext';
 import { LoginScreen } from '../screens/LoginScreen';
+import { ServerSetupScreen } from '../screens/ServerSetupScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { UnlockScreen } from '../screens/UnlockScreen';
 
@@ -52,6 +54,11 @@ const CenteredLoader = ({ label }: { label: string }) => (
 
 export const AppNavigator = () => {
   const { loading, user } = useAuth();
+  const { loading: serverConfigLoading, apiUrl } = useServerConfig();
+
+  if (serverConfigLoading) {
+    return <CenteredLoader label="Loading server config..." />;
+  }
 
   if (loading) {
     return <CenteredLoader label="Restoring session..." />;
@@ -59,11 +66,16 @@ export const AppNavigator = () => {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {user ? (
+      <Stack.Navigator key={apiUrl ? 'configured' : 'setup'} screenOptions={{ headerShown: false }}>
+        {!apiUrl ? (
+          <Stack.Screen name="ServerSetup" component={ServerSetupScreen} />
+        ) : user ? (
           <Stack.Screen name="Main" component={MainTabs} />
         ) : (
-          <Stack.Screen name="Login" component={LoginScreen} />
+          <>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="ServerSetup" component={ServerSetupScreen} />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

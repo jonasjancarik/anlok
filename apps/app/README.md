@@ -18,14 +18,20 @@ cp .env.example .env
 
 Required keys:
 
-- `EXPO_PUBLIC_API_URL`
+- `EXPO_PUBLIC_API_URL` (optional suggested default shown in onboarding)
 - `EXPO_PUBLIC_APP_TITLE` (optional)
 - `EXPO_PUBLIC_APP_SUBTITLE` (optional)
+- `EXPO_PUBLIC_SENDER_EMAIL` (optional, enables Gmail shortcut)
 - `EXPO_PUBLIC_REQUIRED_PIN_LENGTH` (optional, defaults to `4`)
 
 API URL notes:
 - iOS simulator: `http://localhost:8000`
 - Android emulator: `http://10.0.2.2:8000`
+
+Server URL behavior:
+- User enters server URL on first launch before login.
+- URL is stored locally in `AsyncStorage`.
+- `EXPO_PUBLIC_API_URL` only pre-fills the onboarding field; it is no longer the active runtime server unless the user saves it.
 
 3. Run app:
 

@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import * as Linking from 'expo-linking';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { api, apiErrorMessage, authHeaders } from '../lib/api';
@@ -14,6 +15,7 @@ export const UnlockScreen = () => {
   const [status, setStatus] = useState('Ready');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [handledAutoUnlockUrl, setHandledAutoUnlockUrl] = useState<string | null>(null);
 
   const cooldownLeft = useMemo(() => {
     if (!cooldownUntil) {
@@ -35,7 +37,7 @@ export const UnlockScreen = () => {
     return () => clearInterval(interval);
   }, [cooldownUntil]);
 
-  const unlockDoor = async () => {
+  const unlockDoor = useCallback(async () => {
     if (!token || loading) {
       return;
     }
@@ -57,7 +59,37 @@ export const UnlockScreen = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loading, token]);
+
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+
+    const maybeAutoUnlock = (url: string | null) => {
+      if (!url || url === handledAutoUnlockUrl) {
+        return;
+      }
+
+      const { queryParams } = Linking.parse(url);
+      if (queryParams?.['unlock-now'] === undefined) {
+        return;
+      }
+
+      setHandledAutoUnlockUrl(url);
+      void unlockDoor();
+    };
+
+    void Linking.getInitialURL().then((url) => {
+      maybeAutoUnlock(url);
+    });
+
+    const subscription = Linking.addEventListener('url', ({ url }: { url: string }) => {
+      maybeAutoUnlock(url);
+    });
+
+    return () => subscription.remove();
+  }, [handledAutoUnlockUrl, token, unlockDoor]);
 
   return (
     <Screen>

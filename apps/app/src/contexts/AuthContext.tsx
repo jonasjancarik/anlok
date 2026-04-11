@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useServerConfig } from './ServerConfigContext';
 import { api, authHeaders } from '../lib/api';
 import { User } from '../types/entities';
 
@@ -18,6 +19,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const { apiUrl, loading: serverConfigLoading } = useServerConfig();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,7 +68,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    if (!token) {
+    if (serverConfigLoading || !token || !apiUrl) {
       return;
     }
 
@@ -87,7 +89,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => {
       active = false;
     };
-  }, [token, logout]);
+  }, [apiUrl, serverConfigLoading, token, logout]);
 
   const value = useMemo(
     () => ({

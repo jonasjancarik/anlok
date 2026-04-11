@@ -5,6 +5,7 @@ import { ApiKey } from '../../types/entities';
 import {
   Banner,
   Button,
+  Chip,
   Divider,
   FieldLabel,
   Input,
@@ -109,7 +110,21 @@ export const ApiKeyManagement = ({ token, userId }: ApiKeyManagementProps) => {
       />
 
       {newKey ? (
-        <Banner type="info" text={`New API key: ${newKey}`} />
+        <View
+          style={{
+            borderWidth: 1,
+            borderColor: '#bfdbfe',
+            backgroundColor: '#eff6ff',
+            borderRadius: 10,
+            padding: 10,
+            gap: 8,
+          }}
+        >
+          <Text style={{ fontWeight: '700', color: '#1e3a8a' }}>Copy your API key now</Text>
+          <SubtleText>The full key is only shown once after creation.</SubtleText>
+          <Input value={newKey} editable={false} />
+          <Button title="Hide Full Key" variant="ghost" onPress={() => setNewKey(null)} />
+        </View>
       ) : null}
       {success ? <Banner type="success" text={success} /> : null}
       {error ? <Banner type="error" text={error} /> : null}
@@ -132,6 +147,7 @@ export const ApiKeyManagement = ({ token, userId }: ApiKeyManagementProps) => {
             >
               <Text style={{ fontWeight: '700' }}>...{apiKey.key_suffix}</Text>
               <SubtleText>{apiKey.description || 'No description'}</SubtleText>
+              <Chip text={apiKey.is_active ? 'Active' : 'Inactive'} tone={apiKey.is_active ? 'success' : 'danger'} />
               <SubtleText>
                 Created: {new Date(apiKey.created_at).toLocaleString()}
               </SubtleText>

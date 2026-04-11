@@ -1,18 +1,36 @@
 import axios from 'axios';
-import { API_URL } from './config';
+import { DEFAULT_API_URL } from './config';
+
+const trimTrailingSlashes = (value: string) => value.trim().replace(/\/+$/, '');
+
+let currentApiUrl = '';
+
+export const normalizeApiUrl = (value: string) => trimTrailingSlashes(value);
+
+export const setApiBaseUrl = (value: string) => {
+  currentApiUrl = normalizeApiUrl(value);
+  api.defaults.baseURL = currentApiUrl || undefined;
+};
+
+export const getApiBaseUrl = () => currentApiUrl;
 
 export const api = axios.create({
-  baseURL: API_URL || undefined,
+  baseURL: undefined,
   timeout: 15000,
 });
 
 api.interceptors.request.use((config) => {
-  if (!API_URL) {
-    throw new Error('Missing EXPO_PUBLIC_API_URL environment variable.');
+  if (!currentApiUrl) {
+    throw new Error('Missing server URL. Configure the server during onboarding.');
   }
 
+  config.baseURL = currentApiUrl;
   return config;
 });
+
+if (DEFAULT_API_URL) {
+  setApiBaseUrl(DEFAULT_API_URL);
+}
 
 export const authHeaders = (token: string) => ({
   Authorization: `Bearer ${token}`,
