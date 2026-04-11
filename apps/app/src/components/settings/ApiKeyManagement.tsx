@@ -152,6 +152,7 @@ export const ApiKeyManagement = ({ token, userId }: ApiKeyManagementProps) => {
                 Created: {new Date(apiKey.created_at).toLocaleString()}
               </SubtleText>
               <Button
+                size="small"
                 title="Delete"
                 variant="danger"
                 onPress={() => deleteKey(apiKey.key_suffix)}

@@ -199,7 +199,8 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
               {dayOptions.map((label, index) => (
                 <Button
                   key={label}
-                  title={label}
+                  title={label.slice(0, 3)}
+                  size="small"
                   variant={dayOfWeek === String(index) ? 'primary' : 'secondary'}
                   onPress={() => setDayOfWeek(String(index))}
                 />
@@ -306,6 +307,7 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
                     {formatTime(item.start_time)} - {formatTime(item.end_time)}
                   </SubtleText>
                   <Button
+                    size="small"
                     title="Delete"
                     variant="danger"
                     onPress={() => deleteOneTime(item.id)}

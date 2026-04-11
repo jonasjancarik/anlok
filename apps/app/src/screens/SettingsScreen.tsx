@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { ApartmentManagement } from '../components/settings/ApartmentManagement';
 import { UserManagement } from '../components/settings/UserManagement';
 import { UserProfile } from '../components/settings/UserProfile';
-import { Button, PageScroll, Screen, SectionCard } from '../components/common/ui';
+import { Button, PageScroll, Screen, SectionCard, palette, styles as uiStyles } from '../components/common/ui';
 import { useAuth } from '../contexts/AuthContext';
 import { User } from '../types/entities';
 
@@ -14,13 +15,13 @@ export const SettingsScreen = () => {
   const [tab, setTab] = useState<TabKey>('profile');
 
   const tabs = useMemo(() => {
-    const base: Array<{ key: TabKey; label: string }> = [
-      { key: 'profile', label: 'Profile' },
-      { key: 'users', label: 'Users' },
+    const base: Array<{ key: TabKey; label: string; icon: keyof typeof Feather.glyphMap }> = [
+      { key: 'profile', label: 'Profile', icon: 'user' },
+      { key: 'users', label: 'Users', icon: 'users' },
     ];
 
     if (user?.role === 'admin') {
-      base.push({ key: 'apartments', label: 'Apartments' });
+      base.push({ key: 'apartments', label: 'Apartments', icon: 'home' });
     }
 
     return base;
@@ -55,16 +56,21 @@ export const SettingsScreen = () => {
     <Screen>
       <PageScroll>
         <SectionCard title="Settings">
-          <Text style={{ color: '#475569' }}>Manage profile, users, apartment config.</Text>
+          <Text style={[uiStyles.subtleText, { marginBottom: 8 }]}>Manage your profile, users, and apartment configurations.</Text>
           <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-            {tabs.map((option) => (
-              <Button
-                key={option.key}
-                title={option.label}
-                variant={tab === option.key ? 'primary' : 'secondary'}
-                onPress={() => setTab(option.key)}
-              />
-            ))}
+            {tabs.map((option) => {
+              const isSelected = tab === option.key;
+              return (
+                <Button
+                  key={option.key}
+                  title={option.label}
+                  variant={isSelected ? 'primary' : 'secondary'}
+                  onPress={() => setTab(option.key)}
+                  icon={<Feather name={option.icon} size={18} color={isSelected ? '#fff' : palette.text} />}
+                  style={{ minHeight: 44, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, flexGrow: 1 }}
+                />
+              );
+            })}
           </View>
         </SectionCard>
         {renderTab()}

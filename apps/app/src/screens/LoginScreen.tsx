@@ -2,12 +2,13 @@ import * as Linking from 'expo-linking';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { Feather } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useServerConfig } from '../contexts/ServerConfigContext';
 import { api, apiErrorMessage } from '../lib/api';
 import { APP_TITLE, SENDER_EMAIL } from '../lib/config';
 import { AuthTokenResponse } from '../types/entities';
-import { Banner, Button, FieldLabel, Input, PageScroll, Screen, SectionCard, styles as uiStyles } from '../components/common/ui';
+import { Banner, Button, FieldLabel, Input, PageScroll, Screen, SectionCard, styles as uiStyles, palette } from '../components/common/ui';
 
 export const LoginScreen = () => {
   const { login } = useAuth();
@@ -162,19 +163,18 @@ export const LoginScreen = () => {
         style={{ flex: 1 }}
       >
         <PageScroll>
-          <SectionCard title={APP_TITLE}>
-            <Text style={[uiStyles.subtleText, { fontSize: 15 }]}>
-              Passwordless login by email code.
-            </Text>
-            <View style={{ gap: 4 }}>
-              <FieldLabel>Server</FieldLabel>
-              <Text style={uiStyles.subtleText}>{apiUrl}</Text>
-              <Button
-                title="Change Server URL"
-                variant="ghost"
-                onPress={() => navigation.navigate('ServerSetup')}
-              />
+          <View style={{ alignItems: 'center', marginTop: 40, marginBottom: 20 }}>
+            <Feather name="lock" size={48} color={palette.primary} />
+            <Text style={{ fontSize: 28, fontWeight: '800', color: palette.text, marginTop: 12 }}>{APP_TITLE}</Text>
+          </View>
+
+          <SectionCard>
+            <View style={{ gap: 4, marginBottom: 16, alignItems: 'center' }}>
+              <Text style={{ fontSize: 16, color: palette.muted, textAlign: 'center' }}>
+                Passwordless login by email code.
+              </Text>
             </View>
+
             <View style={{ gap: 6 }}>
               <FieldLabel>Email</FieldLabel>
               <Input
@@ -184,25 +184,29 @@ export const LoginScreen = () => {
                 value={email}
                 onChangeText={setEmail}
                 placeholder="name@example.com"
+                autoComplete="email"
               />
             </View>
+
             {!emailSent ? (
               <Button
                 title="Send Login Code"
                 onPress={sendLoginCode}
                 loading={sending}
                 disabled={!email.trim()}
+                icon={<Feather name="send" size={18} color="#fff" />}
+                style={{ marginTop: 8 }}
               />
             ) : (
               <>
-                <View style={{ gap: 6 }}>
+                <View style={{ gap: 6, marginTop: 8 }}>
                   <FieldLabel>Login Code</FieldLabel>
                   <Input
                     autoCapitalize="none"
                     autoCorrect={false}
                     value={loginCode}
                     onChangeText={setLoginCode}
-                    placeholder="Paste code"
+                    placeholder="Code received by email"
                   />
                 </View>
                 <Button
@@ -210,21 +214,45 @@ export const LoginScreen = () => {
                   onPress={() => exchangeCode(loginCode)}
                   loading={exchanging}
                   disabled={!email.trim() || !hasCode}
+                  icon={<Feather name="log-in" size={18} color="#fff" />}
+                  style={{ marginTop: 8 }}
                 />
                 {showGmailShortcut ? (
-                  <Button title="Open Gmail" variant="secondary" onPress={() => void openGmail()} />
+                  <Button 
+                    title="Open Gmail" 
+                    variant="secondary" 
+                    onPress={() => void openGmail()} 
+                    icon={<Feather name="mail" size={18} color={palette.text} />}
+                  />
                 ) : null}
-                <Button title="Start Over" variant="ghost" onPress={reset} />
+                <Button 
+                  title="Start Over" 
+                  variant="ghost" 
+                  onPress={reset} 
+                  icon={<Feather name="refresh-cw" size={18} color={palette.primary} />}
+                />
               </>
             )}
+
             {status ? <Banner type="success" text={status} /> : null}
             {error ? <Banner type="error" text={error} /> : null}
+            
             {emailSent ? (
-              <Text style={uiStyles.subtleText}>
-                Didn&apos;t receive the email? Start over and try again.
+              <Text style={[uiStyles.subtleText, { textAlign: 'center', marginTop: 8 }]}>
+                Didn't receive the email? Start over and try again.
               </Text>
             ) : null}
           </SectionCard>
+
+          <View style={{ alignItems: 'center', marginTop: 24 }}>
+            <Text style={{ fontSize: 13, color: palette.muted, marginBottom: 8 }}>Server: {apiUrl}</Text>
+            <Button
+              title="Change Server URL"
+              variant="ghost"
+              onPress={() => navigation.navigate('ServerSetup')}
+              icon={<Feather name="server" size={16} color={palette.primary} />}
+            />
+          </View>
         </PageScroll>
       </KeyboardAvoidingView>
     </Screen>

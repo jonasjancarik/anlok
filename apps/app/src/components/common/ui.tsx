@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleProp,
@@ -11,18 +12,36 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const palette = {
-  canvas: '#f4f7ff',
-  card: '#ffffff',
-  border: '#d2dbf0',
-  text: '#0f172a',
-  muted: '#475569',
-  primary: '#1d4ed8',
-  danger: '#b91c1c',
-  success: '#047857',
-  warning: '#b45309',
+export const palette = {
+  canvas: '#F8FAFC',
+  card: '#FFFFFF',
+  border: '#E2E8F0',
+  text: '#0F172A',
+  muted: '#64748B',
+  primary: '#4F46E5',
+  primaryActive: '#4338CA',
+  danger: '#EF4444',
+  dangerActive: '#DC2626',
+  success: '#10B981',
+  warning: '#F59E0B',
 };
+
+export const shadows = Platform.select({
+  ios: {
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.04,
+    shadowRadius: 16,
+  },
+  android: {
+    elevation: 4,
+  },
+  web: {
+    boxShadow: '0 10px 15px -3px rgba(15, 23, 42, 0.05), 0 4px 6px -2px rgba(15, 23, 42, 0.025)' as any,
+  },
+}) || {};
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
@@ -32,20 +51,29 @@ interface ButtonProps {
   disabled?: boolean;
   loading?: boolean;
   variant?: ButtonVariant;
+  size?: 'default' | 'small' | 'icon';
   style?: StyleProp<ViewStyle>;
+  icon?: React.ReactNode;
 }
 
-export const Screen = ({ children }: { children: React.ReactNode }) => (
-  <View style={styles.screen}>{children}</View>
-);
+export const Screen = ({ children, noPadding = false }: { children: React.ReactNode; noPadding?: boolean }) => {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={[styles.screen, { paddingTop: noPadding ? 0 : insets.top }]}>
+      {children}
+    </View>
+  );
+};
 
 export const PageScroll = ({ children }: { children: React.ReactNode }) => (
-  <ScrollView contentContainerStyle={styles.scrollContent}>{children}</ScrollView>
+  <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    {children}
+  </ScrollView>
 );
 
-export const SectionCard = ({ children, title }: { children: React.ReactNode; title: string }) => (
-  <View style={styles.card}>
-    <Text style={styles.cardTitle}>{title}</Text>
+export const SectionCard = ({ children, title }: { children: React.ReactNode; title?: string }) => (
+  <View style={[styles.card, shadows]}>
+    {title && <Text style={styles.cardTitle}>{title}</Text>}
     <View style={styles.cardBody}>{children}</View>
   </View>
 );
@@ -58,12 +86,14 @@ export const Banner = ({
   text: string;
 }) => {
   const background =
-    type === 'error' ? '#fee2e2' : type === 'success' ? '#d1fae5' : '#dbeafe';
+    type === 'error' ? '#FEF2F2' : type === 'success' ? '#ECFDF5' : '#EFF6FF';
   const color =
-    type === 'error' ? palette.danger : type === 'success' ? palette.success : palette.primary;
+    type === 'error' ? '#B91C1C' : type === 'success' ? '#047857' : '#1D4ED8';
+  const borderColor = 
+    type === 'error' ? '#FECACA' : type === 'success' ? '#A7F3D0' : '#BFDBFE';
 
   return (
-    <View style={[styles.banner, { backgroundColor: background }]}>
+    <View style={[styles.banner, { backgroundColor: background, borderColor, borderWidth: 1 }]}>
       <Text style={[styles.bannerText, { color }]}>{text}</Text>
     </View>
   );
@@ -75,7 +105,7 @@ export const FieldLabel = ({ children }: { children: React.ReactNode }) => (
 
 export const Input = (props: TextInputProps) => (
   <TextInput
-    placeholderTextColor="#64748b"
+    placeholderTextColor="#94A3B8"
     {...props}
     style={[styles.input, props.multiline ? styles.inputMultiline : null, props.style]}
   />
@@ -87,7 +117,9 @@ export const Button = ({
   disabled,
   loading,
   variant = 'primary',
+  size = 'default',
   style,
+  icon,
 }: ButtonProps) => {
   const variantStyles = {
     primary: styles.buttonPrimary,
@@ -96,12 +128,24 @@ export const Button = ({
     ghost: styles.buttonGhost,
   }[variant];
 
+  const sizeStyles = {
+    default: styles.buttonSizeDefault,
+    small: styles.buttonSizeSmall,
+    icon: styles.buttonSizeIcon,
+  }[size];
+
   const variantTextStyles = {
     primary: styles.buttonPrimaryText,
     secondary: styles.buttonSecondaryText,
     danger: styles.buttonDangerText,
     ghost: styles.buttonGhostText,
   }[variant];
+
+  const sizeTextStyles = {
+    default: styles.buttonTextSizeDefault,
+    small: styles.buttonTextSizeSmall,
+    icon: {},
+  }[size];
 
   return (
     <Pressable
@@ -110,30 +154,34 @@ export const Button = ({
       style={({ pressed }) => [
         styles.button,
         variantStyles,
-        pressed ? styles.buttonPressed : null,
+        sizeStyles,
+        pressed ? { opacity: 0.85, transform: [{ scale: 0.98 }] } : { transform: [{ scale: 1 }] },
         disabled || loading ? styles.buttonDisabled : null,
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'secondary' ? palette.primary : '#ffffff'} />
+        <ActivityIndicator color={variant === 'secondary' || variant === 'ghost' ? palette.primary : '#ffffff'} />
       ) : (
-        <Text style={[styles.buttonText, variantTextStyles]}>{title}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: size === 'small' ? 4 : 6, justifyContent: 'center' }}>
+          {icon}
+          {size !== 'icon' && <Text style={[styles.buttonText, variantTextStyles, sizeTextStyles]}>{title}</Text>}
+        </View>
       )}
     </Pressable>
   );
 };
 
-export const Horizontal = ({ children }: { children: React.ReactNode }) => (
-  <View style={styles.horizontal}>{children}</View>
+export const Horizontal = ({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) => (
+  <View style={[styles.horizontal, style]}>{children}</View>
 );
 
-export const Row = ({ children }: { children: React.ReactNode }) => (
-  <View style={styles.row}>{children}</View>
+export const Row = ({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) => (
+  <View style={[styles.row, style]}>{children}</View>
 );
 
-export const SubtleText = ({ children }: { children: React.ReactNode }) => (
-  <Text style={styles.subtleText}>{children}</Text>
+export const SubtleText = ({ children, style }: { children: React.ReactNode, style?: any }) => (
+  <Text style={[styles.subtleText, style]}>{children}</Text>
 );
 
 export const Divider = () => <View style={styles.divider} />;
@@ -143,12 +191,12 @@ export const Chip = ({
   tone = 'default',
 }: {
   text: string;
-  tone?: 'default' | 'success' | 'danger';
+  tone?: 'default' | 'success' | 'danger' | 'warning';
 }) => {
   const color =
-    tone === 'success' ? '#065f46' : tone === 'danger' ? '#991b1b' : '#1e3a8a';
+    tone === 'success' ? '#065f46' : tone === 'danger' ? '#991b1b' : tone === 'warning' ? '#92400E' : '#1e3a8a';
   const background =
-    tone === 'success' ? '#d1fae5' : tone === 'danger' ? '#fee2e2' : '#dbeafe';
+    tone === 'success' ? '#d1fae5' : tone === 'danger' ? '#fee2e2' : tone === 'warning' ? '#FEF3C7' : '#dbeafe';
 
   return (
     <View style={[styles.chip, { backgroundColor: background }]}>
@@ -163,130 +211,144 @@ export const styles = StyleSheet.create({
     backgroundColor: palette.canvas,
   },
   scrollContent: {
-    gap: 12,
-    padding: 16,
-    paddingBottom: 40,
+    gap: 16,
+    padding: 20,
+    paddingBottom: 60,
   },
   card: {
     backgroundColor: palette.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 14,
-    gap: 10,
+    borderRadius: 20,
+    padding: 20,
+    gap: 16,
   },
   cardTitle: {
     color: palette.text,
-    fontWeight: '700',
-    fontSize: 17,
+    fontWeight: '800',
+    fontSize: 20,
+    letterSpacing: -0.5,
   },
   cardBody: {
-    gap: 8,
+    gap: 12,
   },
   banner: {
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   bannerText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
   label: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
-    color: palette.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    color: palette.text,
+    marginBottom: 4,
   },
   input: {
     borderWidth: 1,
     borderColor: palette.border,
-    backgroundColor: '#ffffff',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    backgroundColor: '#FAFAF9',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     color: palette.text,
-    fontSize: 15,
+    fontSize: 16,
   },
   inputMultiline: {
-    minHeight: 76,
+    minHeight: 100,
     textAlignVertical: 'top',
   },
   button: {
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 42,
+    flexDirection: 'row',
+  },
+  buttonSizeDefault: {
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 52,
+  },
+  buttonSizeSmall: {
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minHeight: 36,
+  },
+  buttonSizeIcon: {
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    minHeight: 36,
+    minWidth: 36,
   },
   buttonPrimary: {
     backgroundColor: palette.primary,
   },
   buttonSecondary: {
-    backgroundColor: '#e2e8f0',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
+    backgroundColor: '#F1F5F9',
   },
   buttonDanger: {
     backgroundColor: palette.danger,
   },
   buttonGhost: {
     backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-  },
-  buttonPressed: {
-    opacity: 0.88,
   },
   buttonDisabled: {
     opacity: 0.5,
   },
   buttonText: {
     fontWeight: '700',
-    fontSize: 15,
+  },
+  buttonTextSizeDefault: {
+    fontSize: 16,
+  },
+  buttonTextSizeSmall: {
+    fontSize: 13,
   },
   buttonPrimaryText: {
     color: '#ffffff',
   },
   buttonSecondaryText: {
-    color: '#0f172a',
+    color: '#334155',
   },
   buttonDangerText: {
     color: '#ffffff',
   },
   buttonGhostText: {
-    color: '#0f172a',
+    color: palette.primary,
   },
   horizontal: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
     alignItems: 'center',
     flexWrap: 'wrap',
   },
   row: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
     flexWrap: 'wrap',
   },
   subtleText: {
     color: palette.muted,
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 20,
   },
   divider: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: palette.border,
-    marginVertical: 4,
+    height: 1,
+    backgroundColor: palette.border,
+    marginVertical: 8,
   },
   chip: {
     alignSelf: 'flex-start',
     borderRadius: 999,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
   },
   chipText: {
     fontSize: 12,
     fontWeight: '700',
+    letterSpacing: 0.2,
   },
 });

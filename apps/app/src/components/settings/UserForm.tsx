@@ -216,6 +216,7 @@ export const UserForm = ({
               <Button
                 key={option}
                 title={option}
+                size="small"
                 variant={role === option ? 'primary' : 'secondary'}
                 onPress={() => setRole(option)}
               />

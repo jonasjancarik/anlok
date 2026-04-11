@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { api, apiErrorMessage, authHeaders } from '../../lib/api';
 import { Apartment, User } from '../../types/entities';
-import { Banner, Button, Chip, Divider, SectionCard, SubtleText } from '../common/ui';
+import { Banner, Button, Chip, Divider, PageScroll, Screen, SectionCard, SubtleText } from '../common/ui';
+import { Feather } from '@expo/vector-icons';
 import { PinManagement } from './PinManagement';
 import { RfidManagement } from './RfidManagement';
 import { ScheduleManagement } from './ScheduleManagement';
@@ -211,17 +212,19 @@ export const UserManagement = ({
                   </View>
                   <SubtleText>{item.email || 'No email'}</SubtleText>
                   <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                    <Button title="Edit" variant="secondary" onPress={() => openModal('user', item)} />
-                    <Button title="PINs" variant="secondary" onPress={() => openModal('pins', item)} />
-                    <Button title="RFIDs" variant="secondary" onPress={() => openModal('rfid', item)} />
+                    <Button size="small" title="Edit" variant="secondary" onPress={() => openModal('user', item)} />
+                    <Button size="small" title="PINs" variant="secondary" onPress={() => openModal('pins', item)} />
+                    <Button size="small" title="RFIDs" variant="secondary" onPress={() => openModal('rfid', item)} />
                     {item.role === 'guest' ? (
                       <Button
+                        size="small"
                         title="Schedule"
                         variant="secondary"
                         onPress={() => openModal('schedule', item)}
                       />
                     ) : null}
                     <Button
+                      size="small"
                       title={item.is_active ? 'Deactivate' : 'Activate'}
                       variant={item.is_active ? 'danger' : 'primary'}
                       disabled={currentUser.role === 'apartment_admin' && item.role === 'admin'}

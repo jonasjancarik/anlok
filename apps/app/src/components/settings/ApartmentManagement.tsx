@@ -158,8 +158,9 @@ export const ApartmentManagement = ({ token }: ApartmentManagementProps) => {
               <Text style={{ fontWeight: '700' }}>Apartment {apartment.number}</Text>
               <SubtleText>{apartment.description || 'No description'}</SubtleText>
               <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                <Button title="Edit" variant="secondary" onPress={() => editApartment(apartment)} />
+                <Button size="small" title="Edit" variant="secondary" onPress={() => editApartment(apartment)} />
                 <Button
+                  size="small"
                   title="Delete"
                   variant="danger"
                   onPress={() => removeApartment(apartment)}

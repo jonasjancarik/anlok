@@ -213,7 +213,7 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
               <Text style={{ fontWeight: '700' }}>{item.label}</Text>
               <SubtleText>PIN: ****</SubtleText>
               <SubtleText>Created: {new Date(item.created_at).toLocaleString()}</SubtleText>
-              <Button title="Delete" variant="danger" onPress={() => deletePin(item.id)} />
+              <Button size="small" title="Delete" variant="danger" onPress={() => deletePin(item.id)} />
             </View>
           ))}
         </View>

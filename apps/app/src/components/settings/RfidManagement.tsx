@@ -147,7 +147,7 @@ export const RfidManagement = ({ token, user }: RfidManagementProps) => {
               <Text style={{ fontWeight: '700' }}>{item.label || 'Unlabeled fob'}</Text>
               <SubtleText>...{item.last_four_digits}</SubtleText>
               <SubtleText>Created: {new Date(item.created_at).toLocaleString()}</SubtleText>
-              <Button title="Delete" variant="danger" onPress={() => deleteRfid(item.id)} />
+              <Button size="small" title="Delete" variant="danger" onPress={() => deleteRfid(item.id)} />
             </View>
           ))}
         </View>
