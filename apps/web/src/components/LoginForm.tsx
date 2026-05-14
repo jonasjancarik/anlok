@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Form, Button, Container, Row, Col, Spinner } from 'react-bootstrap';
 import { useRouter } from 'next/router';
 import axios from 'axios';
@@ -12,16 +12,18 @@ const LoginForm = ({ onLogin }: { onLogin: (token: string, user: User) => void }
     const [emailStatus, setEmailStatus] = useState('');
     const [loading, setLoading] = useState(false);
     const [loginFailed, setLoginFailed] = useState(false);
+    const autoLoginAttemptRef = useRef('');
 
     const router = useRouter();
 
-    const handleLogin = useCallback(async (code: string | null = null) => {
+    const handleLogin = useCallback(async (code: string | null = null, emailOverride?: string) => {
         try {
             // Use the provided code or fallback to the state value
             const loginCodeToUse = code || loginCode;
+            const loginEmail = emailOverride || email;
             const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/auth/tokens`, { 
                 login_code: loginCodeToUse,
-                email: email
+                email: loginEmail
             });
             if (response.status === 201) {
                 onLogin(response.data.access_token, response.data.user);
@@ -46,13 +48,29 @@ const LoginForm = ({ onLogin }: { onLogin: (token: string, user: User) => void }
     }, [loginCode, onLogin, email]);
 
     useEffect(() => {
-        console.log(process.env)
-        const { login_code } = router.query;
-        if (login_code) {
-            setLoginCode(login_code as string);
-            handleLogin(login_code as string); // Automatically send the exchange code request
+        if (!router.isReady) {
+            return;
         }
-    }, [router.query, handleLogin]);
+
+        const { login_code, email: queryEmail } = router.query;
+        const emailFromQuery = typeof queryEmail === 'string' ? queryEmail : '';
+        const loginCodeFromQuery = typeof login_code === 'string' ? login_code : '';
+
+        if (emailFromQuery) {
+            setEmail(emailFromQuery);
+        }
+
+        if (loginCodeFromQuery) {
+            setLoginCode(loginCodeFromQuery);
+            setEmailSent(true);
+
+            const attemptKey = `${emailFromQuery}:${loginCodeFromQuery}`;
+            if (emailFromQuery && autoLoginAttemptRef.current !== attemptKey) {
+                autoLoginAttemptRef.current = attemptKey;
+                handleLogin(loginCodeFromQuery, emailFromQuery);
+            }
+        }
+    }, [router.isReady, router.query, handleLogin]);
 
     const handleSendLink = async () => {
         setLoading(true);

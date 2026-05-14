@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from src import utils
+from src.api.routes import auth as auth_routes
 from src.reader import input_handler
 
 
@@ -44,6 +45,15 @@ class ConfigRegressionTests(unittest.TestCase):
                     legacy_name="GPIO_ACTIVE",
                 ),
                 "LOW",
+            )
+
+    def test_login_link_uses_web_app_url_with_email_and_code(self):
+        with patch.dict(
+            os.environ, {"WEB_APP_URL": "https://anlok.example.com"}, clear=True
+        ):
+            self.assertEqual(
+                auth_routes.build_login_link("AB CD", "jonas+test@example.com"),
+                "https://anlok.example.com/login?login_code=AB+CD&email=jonas%2Btest%40example.com",
             )
 
 

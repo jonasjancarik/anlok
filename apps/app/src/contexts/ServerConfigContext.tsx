@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
 import { DEFAULT_API_URL } from '../lib/config';
 import { normalizeApiUrl, setApiBaseUrl } from '../lib/api';
 
@@ -21,8 +22,10 @@ export const ServerConfigProvider = ({ children }: { children: React.ReactNode }
   useEffect(() => {
     const hydrate = async () => {
       try {
-        const savedApiUrl = await AsyncStorage.getItem(STORAGE_API_URL);
-        const normalized = normalizeApiUrl(savedApiUrl ?? '');
+        const normalized =
+          Platform.OS === 'web'
+            ? normalizeApiUrl(DEFAULT_API_URL)
+            : normalizeApiUrl((await AsyncStorage.getItem(STORAGE_API_URL)) ?? '');
         setApiUrl(normalized);
         setApiBaseUrl(normalized);
       } finally {
@@ -34,6 +37,10 @@ export const ServerConfigProvider = ({ children }: { children: React.ReactNode }
   }, []);
 
   const saveApiUrl = useCallback(async (nextUrl: string) => {
+    if (Platform.OS === 'web') {
+      return;
+    }
+
     const normalized = normalizeApiUrl(nextUrl);
     setApiUrl(normalized);
     setApiBaseUrl(normalized);

@@ -259,6 +259,8 @@ WantedBy=multi-user.target
 
 Set environment variables to configure the app. First copy the example file with `cp .env.example .env` and then edit as needed.
 
+Login emails include both a code and a clickable link. The link is built from `WEB_APP_URL` with `/login` appended.
+
 Run `python setup.py` to create the database and set up the first user. You can also use a CSV file with usernames and PIN codes to create multiple users at once - use the `users.csv.example` as a template.
 
 ### Launching the API server

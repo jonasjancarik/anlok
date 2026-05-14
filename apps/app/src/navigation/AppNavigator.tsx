@@ -3,7 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Text, View } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useServerConfig } from '../contexts/ServerConfigContext';
 import { LoginScreen } from '../screens/LoginScreen';
@@ -69,6 +69,27 @@ const CenteredLoader = ({ label }: { label: string }) => (
   </View>
 );
 
+const WebConfigMissing = () => (
+  <View
+    style={{
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: palette.canvas,
+      gap: 10,
+      padding: 24,
+    }}
+  >
+    <Feather name="server" size={36} color={palette.danger} />
+    <Text style={{ color: palette.text, fontWeight: '800', fontSize: 20, textAlign: 'center' }}>
+      Server URL is not configured
+    </Text>
+    <Text style={{ color: palette.muted, fontSize: 15, textAlign: 'center', lineHeight: 22, maxWidth: 420 }}>
+      Set EXPO_PUBLIC_API_URL for this hosted web app.
+    </Text>
+  </View>
+);
+
 export const AppNavigator = () => {
   const { loading, user } = useAuth();
   const { loading: serverConfigLoading, apiUrl } = useServerConfig();
@@ -84,14 +105,18 @@ export const AppNavigator = () => {
   return (
     <NavigationContainer>
       <Stack.Navigator key={apiUrl ? 'configured' : 'setup'} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.canvas } }}>
-        {!apiUrl ? (
+        {!apiUrl && Platform.OS === 'web' ? (
+          <Stack.Screen name="WebConfigMissing" component={WebConfigMissing} />
+        ) : !apiUrl ? (
           <Stack.Screen name="ServerSetup" component={ServerSetupScreen} />
         ) : user ? (
           <Stack.Screen name="Main" component={MainTabs} />
         ) : (
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="ServerSetup" component={ServerSetupScreen} />
+            {Platform.OS !== 'web' ? (
+              <Stack.Screen name="ServerSetup" component={ServerSetupScreen} />
+            ) : null}
           </>
         )}
       </Stack.Navigator>

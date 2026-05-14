@@ -78,6 +78,7 @@ export const LoginScreen = () => {
 
       if (typeof code === 'string') {
         setLoginCode(code);
+        setEmailSent(true);
         setAutoAttempted(false);
       }
     };
@@ -95,6 +96,7 @@ export const LoginScreen = () => {
 
       if (typeof code === 'string') {
         setLoginCode(code);
+        setEmailSent(true);
         setAutoAttempted(false);
       }
     });
@@ -246,12 +248,14 @@ export const LoginScreen = () => {
 
           <View style={{ alignItems: 'center', marginTop: 24 }}>
             <Text style={{ fontSize: 13, color: palette.muted, marginBottom: 8 }}>Server: {apiUrl}</Text>
-            <Button
-              title="Change Server URL"
-              variant="ghost"
-              onPress={() => navigation.navigate('ServerSetup')}
-              icon={<Feather name="server" size={16} color={palette.primary} />}
-            />
+            {Platform.OS !== 'web' ? (
+              <Button
+                title="Change Server URL"
+                variant="ghost"
+                onPress={() => navigation.navigate('ServerSetup')}
+                icon={<Feather name="server" size={16} color={palette.primary} />}
+              />
+            ) : null}
           </View>
         </PageScroll>
       </KeyboardAvoidingView>

@@ -19,10 +19,23 @@ from botocore.exceptions import ClientError, EndpointConnectionError
 import time as time_module
 from secrets import token_urlsafe
 import random
+from html import escape
+from urllib.parse import urlencode, urljoin
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+
+def build_login_link(login_code: str, email: str) -> str:
+    url_to_use = os.getenv(
+        "WEB_APP_URL", f"http://localhost:{os.getenv('WEB_APP_PORT', 8050)}/"
+    )
+    if not url_to_use.endswith("/"):
+        url_to_use += "/"
+
+    query = urlencode({"login_code": login_code, "email": email})
+    return f"{urljoin(url_to_use, 'login')}?{query}"
 
 
 @router.post("/magic-links", status_code=status.HTTP_202_ACCEPTED)
@@ -44,12 +57,6 @@ def send_magic_link(request: LoginRequest):
         logger.error(f"Login code requested for a non-existing user {email}.")
         return success_message  # for security reasons, we don't want to leak if the user exists
 
-    url_to_use = os.getenv(
-        "WEB_APP_URL", f"http://localhost:{os.getenv('WEB_APP_PORT', 8050)}/"
-    )
-    if not url_to_use.endswith("/"):
-        url_to_use += "/"
-
     aws_region = os.getenv("AWS_REGION")
     if not aws_region:
         raise APIException(status_code=500, detail="Server configuration error")
@@ -64,9 +71,22 @@ def send_magic_link(request: LoginRequest):
         raise APIException(status_code=500, detail="Server configuration error")
 
     subject = "Your Login Code"
-    body_html = f"""<html><body><center><h1>Your Login Code</h1><p>Please use this code to log in:</p><p>{login_code}</p>"""
-
-    # <p>Alternatively, you can click this link to log in: <a href='{url_to_use}login?login_code={login_code}'>Log In</a></p></center></body></html>""" # todo: need to pass the email to the login page and update the frontend to use it
+    login_link = build_login_link(login_code, email)
+    escaped_code = escape(login_code)
+    escaped_link = escape(login_link, quote=True)
+    body_html = f"""
+    <html>
+      <body>
+        <center>
+          <h1>Your Login Code</h1>
+          <p>Please use this code to log in:</p>
+          <p><strong>{escaped_code}</strong></p>
+          <p>Or open this link to log in automatically:</p>
+          <p><a href="{escaped_link}">Log In</a></p>
+        </center>
+      </body>
+    </html>
+    """
 
     try:
         response = ses_client.send_email(
