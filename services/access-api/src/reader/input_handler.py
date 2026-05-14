@@ -16,7 +16,22 @@ load_dotenv()
 
 INPUT_SOURCE = os.getenv("INPUT_SOURCE", "stdin")
 MAX_INPUT_LENGTH = 20  # Set a reasonable maximum length for input
-PIN_LENGTH = os.getenv("PIN_LENGTH", 4)
+
+
+def read_positive_int_env(name, default):
+    value = os.getenv(name, default)
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be an integer")
+
+    if parsed <= 0:
+        raise ValueError(f"{name} must be greater than zero")
+
+    return parsed
+
+
+PIN_LENGTH = read_positive_int_env("PIN_LENGTH", 4)
 
 KEY_CODES = {
     "0225": "1",

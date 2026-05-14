@@ -263,9 +263,9 @@ Run `python setup.py` to create the database and set up the first user. You can 
 
 ### Launching the API server
 
-Launch the API server with `uvicorn api:app` (or with the `--reload` flag for development). 
+Launch the API server with `uvicorn api:app` (or with the `--reload` flag for development).
 
-You need to obtain a bearer token first to use the API directly - you can do it through the web app and extracting the bearer token from the `Authorization` header of the requests. There is functionality for proper API keys in the API, but it is not tested and implemented in the frontend client app yet.
+You need to obtain credentials first to use the API directly. You can either sign in through one of the clients and use the bearer token from the `Authorization` header, or create an API key from the admin profile settings in the web or Expo app. API keys are accepted through the `X-API-Key` header or the `api_key` query parameter.
 
 #### User Roles
 

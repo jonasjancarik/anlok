@@ -9,20 +9,54 @@ import asyncio
 
 load_dotenv()
 
+
+def read_env(name, default=None, legacy_name=None):
+    value = os.getenv(name)
+    if value is not None:
+        return value
+
+    if legacy_name:
+        legacy_value = os.getenv(legacy_name)
+        if legacy_value is not None:
+            logger.warning("%s is deprecated; use %s instead.", legacy_name, name)
+            return legacy_value
+
+    return default
+
+
+def read_int_env(name, default, legacy_name=None):
+    value = read_env(name, default, legacy_name)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        legacy_hint = f" or {legacy_name}" if legacy_name else ""
+        raise ValueError(f"{name}{legacy_hint} must be an integer")
+
+
+def read_choice_env(name, default, choices, legacy_name=None):
+    value = str(read_env(name, default, legacy_name)).strip().upper()
+    if value not in choices:
+        legacy_hint = f" or {legacy_name}" if legacy_name else ""
+        raise ValueError(f"{name}{legacy_hint} must be one of: {', '.join(choices)}")
+    return value
+
+
 # config
 try:
-    RELAY_PIN = int(os.getenv("RELAY_PIN", 18))
-except ValueError:
-    sys.exit("RELAY_PIN must be an integer")
+    RELAY_PIN = read_int_env("RELAY_PIN", 18, legacy_name="RELAY_GPIO")
+except ValueError as e:
+    sys.exit(str(e))
 
-RELAY_ACTIVATION_TIME = int(os.getenv("RELAY_ACTIVATION_TIME", 5))  # seconds
+RELAY_ACTIVATION_TIME = read_int_env("RELAY_ACTIVATION_TIME", 5)  # seconds
 
-if os.getenv("RELAY_ACTIVE_STATE", "HIGH") not in {"HIGH", "LOW"}:
-    raise ValueError("RELAY_ACTIVE_STATE must be either HIGH or LOW")
-
-RELAY_ACTIVE_STATE = (
-    GPIO.HIGH if os.getenv("RELAY_ACTIVE_STATE") == "HIGH" else GPIO.LOW
+RELAY_ACTIVE_STATE_NAME = read_choice_env(
+    "RELAY_ACTIVE_STATE",
+    "HIGH",
+    {"HIGH", "LOW"},
+    legacy_name="GPIO_ACTIVE",
 )
+
+RELAY_ACTIVE_STATE = GPIO.HIGH if RELAY_ACTIVE_STATE_NAME == "HIGH" else GPIO.LOW
 
 # GPIO setup
 try:
