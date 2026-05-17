@@ -1,6 +1,6 @@
 import * as Linking from 'expo-linking';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -165,100 +165,171 @@ export const LoginScreen = () => {
         style={{ flex: 1 }}
       >
         <PageScroll>
-          <View style={{ alignItems: 'center', marginTop: 40, marginBottom: 20 }}>
-            <Feather name="lock" size={48} color={palette.primary} />
-            <Text style={{ fontSize: 28, fontWeight: '800', color: palette.text, marginTop: 12 }}>{APP_TITLE}</Text>
-          </View>
-
-          <SectionCard>
-            <View style={{ gap: 4, marginBottom: 16, alignItems: 'center' }}>
-              <Text style={{ fontSize: 16, color: palette.muted, textAlign: 'center' }}>
-                Passwordless login by email code.
-              </Text>
+          <View style={screenStyles.shell}>
+            <View style={screenStyles.hero}>
+              <View style={screenStyles.mark}>
+                <Feather name="lock" size={26} color={palette.primary} />
+              </View>
+              <Text style={screenStyles.title}>{APP_TITLE}</Text>
+              <Text style={screenStyles.subtitle}>Sign in to manage apartment access.</Text>
             </View>
 
-            <View style={{ gap: 6 }}>
-              <FieldLabel>Email</FieldLabel>
-              <Input
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
-                value={email}
-                onChangeText={setEmail}
-                placeholder="name@example.com"
-                autoComplete="email"
-              />
-            </View>
+            <SectionCard title="Passwordless login">
+              <View style={screenStyles.intro}>
+                <Text style={screenStyles.introText}>
+                  We will send a short login code to your email. No password required.
+                </Text>
+              </View>
 
-            {!emailSent ? (
-              <Button
-                title="Send Login Code"
-                onPress={sendLoginCode}
-                loading={sending}
-                disabled={!email.trim()}
-                icon={<Feather name="send" size={18} color="#fff" />}
-                style={{ marginTop: 8 }}
-              />
-            ) : (
-              <>
-                <View style={{ gap: 6, marginTop: 8 }}>
-                  <FieldLabel>Login Code</FieldLabel>
-                  <Input
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    value={loginCode}
-                    onChangeText={setLoginCode}
-                    placeholder="Code received by email"
-                  />
-                </View>
+              <View style={{ gap: 6 }}>
+                <FieldLabel>Email</FieldLabel>
+                <Input
+                  accessibilityLabel="Email"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  nativeID="login-email"
+                  onChangeText={setEmail}
+                  placeholder="name@example.com"
+                  value={email}
+                />
+              </View>
+
+              {!emailSent ? (
                 <Button
-                  title="Login"
-                  onPress={() => exchangeCode(loginCode)}
-                  loading={exchanging}
-                  disabled={!email.trim() || !hasCode}
-                  icon={<Feather name="log-in" size={18} color="#fff" />}
+                  title="Send login code"
+                  onPress={sendLoginCode}
+                  loading={sending}
+                  disabled={!email.trim()}
+                  icon={<Feather name="send" size={18} color="#fff" />}
                   style={{ marginTop: 8 }}
                 />
-                {showGmailShortcut ? (
-                  <Button 
-                    title="Open Gmail" 
-                    variant="secondary" 
-                    onPress={() => void openGmail()} 
-                    icon={<Feather name="mail" size={18} color={palette.text} />}
+              ) : (
+                <>
+                  <View style={{ gap: 6, marginTop: 8 }}>
+                    <FieldLabel>Login Code</FieldLabel>
+                    <Input
+                      accessibilityLabel="Login code"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      nativeID="login-code"
+                      onChangeText={setLoginCode}
+                      placeholder="Code received by email"
+                      value={loginCode}
+                    />
+                  </View>
+                  <Button
+                    title="Login"
+                    onPress={() => exchangeCode(loginCode)}
+                    loading={exchanging}
+                    disabled={!email.trim() || !hasCode}
+                    icon={<Feather name="log-in" size={18} color="#fff" />}
+                    style={{ marginTop: 8 }}
                   />
-                ) : null}
-                <Button 
-                  title="Start Over" 
-                  variant="ghost" 
-                  onPress={reset} 
-                  icon={<Feather name="refresh-cw" size={18} color={palette.primary} />}
+                  {showGmailShortcut ? (
+                    <Button
+                      title="Open Gmail"
+                      variant="secondary"
+                      onPress={() => void openGmail()}
+                      icon={<Feather name="mail" size={18} color={palette.text} />}
+                    />
+                  ) : null}
+                  <Button
+                    title="Start Over"
+                    variant="ghost"
+                    onPress={reset}
+                    icon={<Feather name="refresh-cw" size={18} color={palette.primary} />}
+                  />
+                </>
+              )}
+
+              {status ? <Banner type="success" text={status} /> : null}
+              {error ? <Banner type="error" text={error} /> : null}
+
+              {emailSent ? (
+                <Text style={[uiStyles.subtleText, { textAlign: 'center', marginTop: 8 }]}>
+                  Didn't receive the email? Start over and try again.
+                </Text>
+              ) : null}
+            </SectionCard>
+
+            <View style={screenStyles.footer}>
+              <Text style={screenStyles.serverText}>Server: {apiUrl}</Text>
+              {Platform.OS !== 'web' ? (
+                <Button
+                  title="Change server URL"
+                  variant="ghost"
+                  onPress={() => navigation.navigate('ServerSetup')}
+                  icon={<Feather name="server" size={16} color={palette.primary} />}
                 />
-              </>
-            )}
-
-            {status ? <Banner type="success" text={status} /> : null}
-            {error ? <Banner type="error" text={error} /> : null}
-            
-            {emailSent ? (
-              <Text style={[uiStyles.subtleText, { textAlign: 'center', marginTop: 8 }]}>
-                Didn't receive the email? Start over and try again.
-              </Text>
-            ) : null}
-          </SectionCard>
-
-          <View style={{ alignItems: 'center', marginTop: 24 }}>
-            <Text style={{ fontSize: 13, color: palette.muted, marginBottom: 8 }}>Server: {apiUrl}</Text>
-            {Platform.OS !== 'web' ? (
-              <Button
-                title="Change Server URL"
-                variant="ghost"
-                onPress={() => navigation.navigate('ServerSetup')}
-                icon={<Feather name="server" size={16} color={palette.primary} />}
-              />
-            ) : null}
+              ) : null}
+            </View>
           </View>
         </PageScroll>
       </KeyboardAvoidingView>
     </Screen>
   );
 };
+
+const screenStyles = StyleSheet.create({
+  shell: {
+    alignSelf: 'center',
+    gap: 16,
+    maxWidth: 520,
+    width: '100%',
+  },
+  hero: {
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+    marginTop: 34,
+  },
+  mark: {
+    alignItems: 'center',
+    backgroundColor: palette.primarySoft,
+    borderColor: palette.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 58,
+    justifyContent: 'center',
+    marginBottom: 8,
+    width: 58,
+  },
+  title: {
+    color: palette.text,
+    fontSize: 31,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  subtitle: {
+    color: palette.muted,
+    fontSize: 15,
+    fontWeight: '500',
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  intro: {
+    backgroundColor: palette.field,
+    borderColor: palette.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 14,
+  },
+  introText: {
+    color: palette.muted,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  footer: {
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  serverText: {
+    color: palette.muted,
+    fontSize: 13,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+});

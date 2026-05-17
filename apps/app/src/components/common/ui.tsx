@@ -17,31 +17,36 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const palette = {
-  canvas: '#F8FAFC',
-  card: '#FFFFFF',
-  border: '#E2E8F0',
-  text: '#0F172A',
-  muted: '#64748B',
-  primary: '#4F46E5',
-  primaryActive: '#4338CA',
-  danger: '#EF4444',
-  dangerActive: '#DC2626',
-  success: '#10B981',
-  warning: '#F59E0B',
+  canvas: '#F4F0E8',
+  card: '#FFFCF6',
+  raised: '#FFFFFF',
+  field: '#FBF7F0',
+  border: '#DDD3C4',
+  borderStrong: '#C7B9A6',
+  text: '#17201A',
+  muted: '#6E756D',
+  subtle: '#928877',
+  primary: '#176B54',
+  primaryActive: '#10523F',
+  primarySoft: '#DDEBE4',
+  danger: '#B5473F',
+  dangerActive: '#933932',
+  success: '#27765A',
+  warning: '#A8641C',
 };
 
 export const shadows = Platform.select({
   ios: {
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.04,
-    shadowRadius: 16,
+    shadowColor: '#2B2118',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 18,
   },
   android: {
-    elevation: 4,
+    elevation: 2,
   },
   web: {
-    boxShadow: '0 10px 15px -3px rgba(15, 23, 42, 0.05), 0 4px 6px -2px rgba(15, 23, 42, 0.025)' as any,
+    boxShadow: '0 14px 30px rgba(43, 33, 24, 0.055)' as any,
   },
 }) || {};
 
@@ -88,11 +93,11 @@ export const Banner = ({
   text: string;
 }) => {
   const background =
-    type === 'error' ? '#FEF2F2' : type === 'success' ? '#ECFDF5' : '#EFF6FF';
+    type === 'error' ? '#F8E8E4' : type === 'success' ? '#E5F1EA' : '#EFE8DB';
   const color =
-    type === 'error' ? '#B91C1C' : type === 'success' ? '#047857' : '#1D4ED8';
+    type === 'error' ? palette.danger : type === 'success' ? palette.success : palette.warning;
   const borderColor = 
-    type === 'error' ? '#FECACA' : type === 'success' ? '#A7F3D0' : '#BFDBFE';
+    type === 'error' ? '#E5B7AF' : type === 'success' ? '#BDD8CA' : '#DDCDB4';
 
   return (
     <View style={[styles.banner, { backgroundColor: background, borderColor, borderWidth: 1 }]}>
@@ -196,9 +201,9 @@ export const Chip = ({
   tone?: 'default' | 'success' | 'danger' | 'warning';
 }) => {
   const color =
-    tone === 'success' ? '#065f46' : tone === 'danger' ? '#991b1b' : tone === 'warning' ? '#92400E' : '#1e3a8a';
+    tone === 'success' ? palette.success : tone === 'danger' ? palette.danger : tone === 'warning' ? palette.warning : palette.primary;
   const background =
-    tone === 'success' ? '#d1fae5' : tone === 'danger' ? '#fee2e2' : tone === 'warning' ? '#FEF3C7' : '#dbeafe';
+    tone === 'success' ? '#E3F1EA' : tone === 'danger' ? '#F8E8E4' : tone === 'warning' ? '#F4E7D4' : palette.primarySoft;
 
   return (
     <View style={[styles.chip, { backgroundColor: background }]}>
@@ -214,26 +219,31 @@ export const styles = StyleSheet.create({
   },
   scrollContent: {
     gap: 16,
+    width: '100%',
+    maxWidth: 1120,
+    alignSelf: 'center',
     padding: 20,
     paddingBottom: 60,
   },
   card: {
     backgroundColor: palette.card,
-    borderRadius: 20,
+    borderColor: palette.border,
+    borderRadius: 8,
+    borderWidth: 1,
     padding: 20,
     gap: 16,
   },
   cardTitle: {
     color: palette.text,
     fontWeight: '800',
-    fontSize: 20,
-    letterSpacing: -0.5,
+    fontSize: 19,
+    letterSpacing: 0,
   },
   cardBody: {
     gap: 12,
   },
   banner: {
-    borderRadius: 12,
+    borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
@@ -242,16 +252,18 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
   },
   label: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
-    color: palette.text,
+    color: palette.muted,
     marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
   },
   input: {
     borderWidth: 1,
     borderColor: palette.border,
-    backgroundColor: '#FAFAF9',
-    borderRadius: 12,
+    backgroundColor: palette.field,
+    borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 14,
     color: palette.text,
@@ -267,19 +279,19 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   buttonSizeDefault: {
-    borderRadius: 14,
+    borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 14,
     minHeight: 52,
   },
   buttonSizeSmall: {
-    borderRadius: 10,
+    borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
     minHeight: 36,
   },
   buttonSizeIcon: {
-    borderRadius: 10,
+    borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 8,
     minHeight: 36,
@@ -289,7 +301,9 @@ export const styles = StyleSheet.create({
     backgroundColor: palette.primary,
   },
   buttonSecondary: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F0E9DE',
+    borderColor: palette.border,
+    borderWidth: 1,
   },
   buttonDanger: {
     backgroundColor: palette.danger,
@@ -302,6 +316,7 @@ export const styles = StyleSheet.create({
   },
   buttonText: {
     fontWeight: '700',
+    letterSpacing: 0,
   },
   buttonTextSizeDefault: {
     fontSize: 16,
@@ -313,7 +328,7 @@ export const styles = StyleSheet.create({
     color: '#ffffff',
   },
   buttonSecondaryText: {
-    color: '#334155',
+    color: palette.text,
   },
   buttonDangerText: {
     color: '#ffffff',
@@ -344,7 +359,9 @@ export const styles = StyleSheet.create({
   },
   chip: {
     alignSelf: 'flex-start',
-    borderRadius: 999,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.border,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
