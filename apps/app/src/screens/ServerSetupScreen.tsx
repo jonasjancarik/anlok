@@ -3,15 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useServerConfig } from '../contexts/ServerConfigContext';
 import { Banner, Button, FieldLabel, Input, PageScroll, Screen, SectionCard, styles as uiStyles, palette } from '../components/common/ui';
-
-const isValidServerUrl = (value: string) => {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-};
+import { isSupportedApiUrl, normalizeApiUrl } from '../lib/api';
 
 export const ServerSetupScreen = () => {
   const { apiUrl, suggestedApiUrl, saveApiUrl } = useServerConfig();
@@ -26,12 +18,20 @@ export const ServerSetupScreen = () => {
       return 'Enter the server URL.';
     }
 
-    if (!isValidServerUrl(trimmed)) {
-      return 'Use a full http:// or https:// URL.';
+    if (!isSupportedApiUrl(trimmed)) {
+      return 'Enter a valid server host or URL.';
     }
 
     return '';
   }, [draftUrl]);
+
+  const normalizedUrl = useMemo(() => {
+    if (validationError || !draftUrl.trim()) {
+      return '';
+    }
+
+    return normalizeApiUrl(draftUrl);
+  }, [draftUrl, validationError]);
 
   const save = async () => {
     if (validationError) {
@@ -77,12 +77,15 @@ export const ServerSetupScreen = () => {
                 keyboardType="url"
                 nativeID="server-url"
                 onChangeText={setDraftUrl}
-                placeholder="https://anlok.example.com"
+                placeholder="door-api.example.com"
                 value={draftUrl}
               />
               <Text style={[uiStyles.subtleText, { fontSize: 13, marginTop: 4 }]}>
-                Examples: https://demo.example.com, http://10.0.2.2:8000
+                Examples: door-api.example.com, https://demo.example.com, 10.0.2.2:8000
               </Text>
+              {normalizedUrl ? (
+                <Text style={[uiStyles.subtleText, { fontSize: 13 }]}>Will connect to {normalizedUrl}</Text>
+              ) : null}
             </View>
 
             {error ? <Banner type="error" text={error} /> : null}

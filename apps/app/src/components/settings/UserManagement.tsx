@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Modal, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { api, apiErrorMessage, authHeaders } from '../../lib/api';
 import { Apartment, User } from '../../types/entities';
-import { Banner, Button, Chip, Divider, PageScroll, Screen, SectionCard, SubtleText, palette } from '../common/ui';
+import { Toast, ToastTone } from '../common/Toast';
+import { Banner, Button, Divider, PageScroll, Screen, SectionCard, SubtleText, palette } from '../common/ui';
 import { Feather } from '@expo/vector-icons';
 import { PinManagement } from './PinManagement';
 import { RfidManagement } from './RfidManagement';
@@ -17,6 +18,7 @@ interface UserManagementProps {
 }
 
 type ModalType = 'user' | 'pins' | 'rfid' | 'schedule' | null;
+type ToastState = { message: string; type: ToastTone } | null;
 
 const apartmentNumberForUser = (user: User) => user.apartment?.number ?? '';
 
@@ -32,7 +34,8 @@ export const UserManagement = ({
   const [modalType, setModalType] = useState<ModalType>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [toast, setToast] = useState<ToastState>(null);
+  const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadApartments = useCallback(async () => {
     try {
@@ -96,6 +99,24 @@ export const UserManagement = ({
     }
   }, [isActive, loadApartments, loadUsers]);
 
+  useEffect(() => () => {
+    if (toastTimeout.current) {
+      clearTimeout(toastTimeout.current);
+    }
+  }, []);
+
+  const showToast = useCallback((message: string, type: ToastTone = 'success') => {
+    if (toastTimeout.current) {
+      clearTimeout(toastTimeout.current);
+    }
+
+    setToast({ message, type });
+    toastTimeout.current = setTimeout(() => {
+      setToast(null);
+      toastTimeout.current = null;
+    }, 2600);
+  }, []);
+
   const groupedUsers = useMemo(() => {
     const usersByApartment = new Map<string, User[]>();
 
@@ -126,14 +147,14 @@ export const UserManagement = ({
       onCurrentUserUpdated(result);
     }
 
-    setSuccess(result ? 'User saved.' : 'User deleted.');
+    setError('');
+    showToast(result ? 'User saved.' : 'User deleted.');
     closeModal();
     await loadUsers();
   };
 
   const toggleUserActive = async (target: User) => {
     setError('');
-    setSuccess('');
 
     try {
       const response = await api.put<User>(
@@ -150,92 +171,132 @@ export const UserManagement = ({
         onCurrentUserUpdated({ ...target, is_active: response.data.is_active });
       }
 
-      setSuccess(`User ${response.data.is_active ? 'activated' : 'deactivated'}.`);
+      showToast(`User ${response.data.is_active ? 'activated' : 'deactivated'}.`);
     } catch (nextError) {
-      setError(apiErrorMessage(nextError, 'Failed to update user status.'));
+      showToast(apiErrorMessage(nextError, 'Failed to update user status.'), 'error');
     }
   };
 
   const roleColor = (role: User['role']) => {
     if (role === 'admin') {
-      return 'danger';
+      return {
+        backgroundColor: '#F8E8E4',
+        borderColor: '#E5B7AF',
+        textColor: palette.danger,
+      };
     }
 
     if (role === 'apartment_admin') {
-      return 'default';
+      return {
+        backgroundColor: palette.primarySoft,
+        borderColor: '#C7D8CE',
+        textColor: palette.primary,
+      };
     }
 
-    return 'success';
+    return {
+      backgroundColor: '#E3F1EA',
+      borderColor: '#BDD8CA',
+      textColor: palette.success,
+    };
+  };
+
+  const roleLabel = (role: User['role']) => {
+    if (role === 'apartment_admin') {
+      return 'Apt admin';
+    }
+
+    return role.charAt(0).toUpperCase() + role.slice(1);
   };
 
   return (
-    <SectionCard title="Users">
-      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-        <Button title="Add User" size="small" icon={<Feather name="plus" size={14} color="#fff" />} onPress={() => openModal('user', null)} />
-        <View style={{ flex: 1, alignItems: 'flex-end', justifyContent: 'center' }}>
-          <SubtleText style={{ fontSize: 12 }}>
-            Apartments: {currentUser.role === 'admin' ? 'All' : currentUser.apartment?.number ?? 'Current'}
-          </SubtleText>
+    <SectionCard>
+      <View style={userStyles.toolbar}>
+        <Button
+          title="Add user"
+          size="small"
+          icon={<Feather name="plus" size={14} color="#fff" />}
+          onPress={() => openModal('user', null)}
+        />
+        <View style={userStyles.scopePill}>
+          <Text style={userStyles.scopeText}>
+            {currentUser.role === 'admin' ? 'All apartments' : `Apartment ${currentUser.apartment?.number ?? 'current'}`}
+          </Text>
         </View>
       </View>
 
-      {success ? <Banner type="success" text={success} /> : null}
       {error ? <Banner type="error" text={error} /> : null}
 
       <Divider />
       {groupedUsers.length === 0 ? (
         <SubtleText>{loading ? 'Loading users...' : 'No users found.'}</SubtleText>
       ) : (
-        <View style={{ gap: 16 }}>
+        <View style={userStyles.groupList}>
           {groupedUsers.map(([apartmentNumber, apartmentUsers]) => (
-            <View key={apartmentNumber} style={{ gap: 8 }}>
-              <View style={{ backgroundColor: palette.canvas, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, alignSelf: 'flex-start' }}>
-                <Text style={{ fontWeight: '800', fontSize: 14, color: palette.muted }}>Apartment {apartmentNumber}</Text>
+            <View key={apartmentNumber} style={userStyles.group}>
+              <View style={userStyles.groupHeader}>
+                <Text style={userStyles.groupTitle}>Apartment {apartmentNumber}</Text>
+                <Text style={userStyles.groupCount}>
+                  {apartmentUsers.length} {apartmentUsers.length === 1 ? 'user' : 'users'}
+                </Text>
               </View>
-              
-              {apartmentUsers.map((item, index) => (
-                <View
-                  key={item.id}
-                  style={{
-                    paddingVertical: 12,
-                    borderBottomWidth: index === apartmentUsers.length - 1 ? 0 : 1,
-                    borderBottomColor: palette.canvas,
-                    gap: 10,
-                    opacity: item.is_active ? 1 : 0.5,
-                  }}
-                >
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <View>
-                      <Text style={{ fontWeight: '700', fontSize: 16, color: palette.text }}>{item.name}</Text>
-                      <SubtleText style={{ fontSize: 13 }}>{item.email || 'No email'}</SubtleText>
+
+              {apartmentUsers.map((item, index) => {
+                const roleStyle = roleColor(item.role);
+                return (
+                  <View
+                    key={item.id}
+                    style={[
+                      userStyles.userRow,
+                      index === apartmentUsers.length - 1 ? userStyles.userRowLast : null,
+                      item.is_active ? null : userStyles.userRowInactive,
+                    ]}
+                  >
+                    <View style={userStyles.userHeader}>
+                      <View style={userStyles.identity}>
+                        <Text style={userStyles.name} numberOfLines={1}>{item.name}</Text>
+                        <Text style={userStyles.email} numberOfLines={1}>{item.email || 'No email'}</Text>
+                      </View>
+                      <View style={userStyles.metaActions}>
+                        <View style={[userStyles.roleBadge, { backgroundColor: roleStyle.backgroundColor, borderColor: roleStyle.borderColor }]}>
+                          <Text style={[userStyles.roleText, { color: roleStyle.textColor }]} numberOfLines={1}>
+                            {roleLabel(item.role)}
+                          </Text>
+                        </View>
+                        <Pressable
+                          accessibilityLabel={item.is_active ? `Disable ${item.name}` : `Enable ${item.name}`}
+                          accessibilityRole="button"
+                          disabled={currentUser.role === 'apartment_admin' && item.role === 'admin'}
+                          onPress={() => toggleUserActive(item)}
+                          style={({ pressed }) => [
+                            userStyles.statusToggle,
+                            item.is_active ? userStyles.statusToggleDanger : userStyles.statusToggleSuccess,
+                            pressed ? { opacity: 0.72 } : null,
+                          ]}
+                        >
+                          <Feather name={item.is_active ? 'slash' : 'check'} size={14} color={item.is_active ? palette.danger : palette.success} />
+                        </Pressable>
+                      </View>
                     </View>
-                    <Chip text={item.role} tone={roleColor(item.role)} />
+
+                    <View style={userStyles.actions}>
+                      <Button size="small" title="Edit" variant="secondary" icon={<Feather name="edit-2" size={12} color={palette.text} />} onPress={() => openModal('user', item)} style={userStyles.actionButton} />
+                      <Button size="small" title="PINs" variant="secondary" icon={<Feather name="grid" size={12} color={palette.text} />} onPress={() => openModal('pins', item)} style={userStyles.actionButton} />
+                      <Button size="small" title="RFIDs" variant="secondary" icon={<Feather name="radio" size={12} color={palette.text} />} onPress={() => openModal('rfid', item)} style={userStyles.actionButton} />
+                      {item.role === 'guest' ? (
+                        <Button
+                          size="small"
+                          title="Schedule"
+                          variant="secondary"
+                          icon={<Feather name="clock" size={12} color={palette.text} />}
+                          onPress={() => openModal('schedule', item)}
+                          style={userStyles.actionButton}
+                        />
+                      ) : null}
+                    </View>
                   </View>
-                  
-                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                    <Button size="small" title="Edit" variant="secondary" icon={<Feather name="edit-2" size={12} color={palette.text} />} onPress={() => openModal('user', item)} />
-                    <Button size="small" title="PINs" variant="secondary" icon={<Feather name="grid" size={12} color={palette.text} />} onPress={() => openModal('pins', item)} />
-                    <Button size="small" title="RFIDs" variant="secondary" icon={<Feather name="radio" size={12} color={palette.text} />} onPress={() => openModal('rfid', item)} />
-                    {item.role === 'guest' ? (
-                      <Button
-                        size="small"
-                        title="Schedule"
-                        variant="secondary"
-                        icon={<Feather name="clock" size={12} color={palette.text} />}
-                        onPress={() => openModal('schedule', item)}
-                      />
-                    ) : null}
-                    <Button
-                      size="small"
-                      title={item.is_active ? 'Disable' : 'Enable'}
-                      variant={item.is_active ? 'ghost' : 'secondary'}
-                      icon={<Feather name={item.is_active ? 'slash' : 'check'} size={12} color={item.is_active ? palette.danger : palette.text} />}
-                      disabled={currentUser.role === 'apartment_admin' && item.role === 'admin'}
-                      onPress={() => toggleUserActive(item)}
-                    />
-                  </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           ))}
         </View>
@@ -279,6 +340,138 @@ export const UserManagement = ({
       </Modal>
 
       {apartments.length === 0 ? null : <SubtleText style={{ marginTop: 12, textAlign: 'center', fontSize: 12 }}>Total apartments configured: {apartments.length}</SubtleText>}
+
+      <Toast
+        message={toast?.message ?? ''}
+        tone={toast?.type}
+        visible={toast !== null}
+        onDismiss={() => setToast(null)}
+      />
     </SectionCard>
   );
 };
+
+const userStyles = StyleSheet.create({
+  toolbar: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'space-between',
+  },
+  scopePill: {
+    backgroundColor: palette.field,
+    borderColor: palette.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  scopeText: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  groupList: {
+    gap: 18,
+  },
+  group: {
+    gap: 0,
+  },
+  groupHeader: {
+    alignItems: 'center',
+    borderBottomColor: palette.border,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'space-between',
+    paddingBottom: 8,
+  },
+  groupTitle: {
+    color: palette.text,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  groupCount: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  userRow: {
+    borderBottomColor: '#ECE4D8',
+    borderBottomWidth: 1,
+    gap: 10,
+    paddingVertical: 14,
+  },
+  userRowLast: {
+    borderBottomWidth: 0,
+  },
+  userRowInactive: {
+    opacity: 0.52,
+  },
+  userHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  identity: {
+    flex: 1,
+    minWidth: 0,
+  },
+  name: {
+    color: palette.text,
+    fontSize: 17,
+    fontWeight: '900',
+    lineHeight: 22,
+  },
+  email: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  roleBadge: {
+    borderRadius: 8,
+    borderWidth: 1,
+    flexShrink: 0,
+    maxWidth: 112,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  roleText: {
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  metaActions: {
+    alignItems: 'flex-end',
+    flexShrink: 0,
+    gap: 6,
+    maxWidth: 124,
+  },
+  statusToggle: {
+    alignItems: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 28,
+    justifyContent: 'center',
+    width: 32,
+  },
+  statusToggleDanger: {
+    backgroundColor: '#FCF2EE',
+    borderColor: '#E9C6BD',
+  },
+  statusToggleSuccess: {
+    backgroundColor: '#E9F4EE',
+    borderColor: '#BDD8CA',
+  },
+  actions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  actionButton: {
+    minHeight: 32,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+});

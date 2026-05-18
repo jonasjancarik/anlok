@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { ApartmentManagement } from '../components/settings/ApartmentManagement';
@@ -8,14 +8,40 @@ import { Button, PageScroll, Screen, SectionCard, palette, styles as uiStyles } 
 import { useAuth } from '../contexts/AuthContext';
 import { User } from '../types/entities';
 
-type TabKey = 'profile' | 'users' | 'apartments';
+export type SettingsTabKey = 'profile' | 'users' | 'apartments';
 
-export const SettingsScreen = () => {
+type SettingsScreenProps = {
+  route?: {
+    params?: {
+      tab?: SettingsTabKey;
+      hideTabSwitcher?: boolean;
+    };
+  };
+};
+
+const tabCopy: Record<SettingsTabKey, { title: string; description: string }> = {
+  profile: {
+    title: 'Profile',
+    description: 'Manage your account, API keys, and session.',
+  },
+  users: {
+    title: 'Users',
+    description: 'Manage residents, guests, PINs, RFID tags, and schedules.',
+  },
+  apartments: {
+    title: 'Apartments',
+    description: 'Manage apartment configuration.',
+  },
+};
+
+export const SettingsScreen = ({ route }: SettingsScreenProps) => {
   const { user, token, updateUser } = useAuth();
-  const [tab, setTab] = useState<TabKey>('profile');
+  const requestedTab = route?.params?.tab ?? 'profile';
+  const hideTabSwitcher = route?.params?.hideTabSwitcher ?? false;
+  const [tab, setTab] = useState<SettingsTabKey>(requestedTab);
 
   const tabs = useMemo(() => {
-    const base: Array<{ key: TabKey; label: string; icon: keyof typeof Feather.glyphMap }> = [
+    const base: Array<{ key: SettingsTabKey; label: string; icon: keyof typeof Feather.glyphMap }> = [
       { key: 'profile', label: 'Profile', icon: 'user' },
       { key: 'users', label: 'Users', icon: 'users' },
     ];
@@ -27,16 +53,26 @@ export const SettingsScreen = () => {
     return base;
   }, [user?.role]);
 
+  useEffect(() => {
+    setTab(requestedTab);
+  }, [requestedTab]);
+
   if (!user || !token) {
     return null;
   }
 
+  const activeTab = tabs.some((option) => option.key === tab) ? tab : 'profile';
+  const copy = hideTabSwitcher ? tabCopy[activeTab] : {
+    title: 'Settings',
+    description: 'Manage your profile, residents, and apartment configuration.',
+  };
+
   const renderTab = () => {
-    if (tab === 'profile') {
+    if (activeTab === 'profile') {
       return <UserProfile token={token} user={user} />;
     }
 
-    if (tab === 'users') {
+    if (activeTab === 'users') {
       return (
         <UserManagement
           token={token}
@@ -59,31 +95,31 @@ export const SettingsScreen = () => {
           <View style={screenStyles.header}>
             <View>
               <Text style={screenStyles.eyebrow}>Workspace</Text>
-              <Text style={screenStyles.title}>Settings</Text>
+              <Text style={screenStyles.title}>{copy.title}</Text>
             </View>
             <View style={screenStyles.roleBadge}>
               <Feather name="shield" size={14} color={palette.primary} />
               <Text style={screenStyles.roleText}>{user.role}</Text>
             </View>
           </View>
-          <Text style={[uiStyles.subtleText, screenStyles.description]}>
-            Manage your profile, residents, and apartment configuration.
-          </Text>
-          <View style={screenStyles.tabs}>
-            {tabs.map((option) => {
-              const isSelected = tab === option.key;
-              return (
-                <Button
-                  key={option.key}
-                  title={option.label}
-                  variant={isSelected ? 'primary' : 'secondary'}
-                  onPress={() => setTab(option.key)}
-                  icon={<Feather name={option.icon} size={18} color={isSelected ? '#fff' : palette.text} />}
-                  style={screenStyles.tabButton}
-                />
-              );
-            })}
-          </View>
+          <Text style={[uiStyles.subtleText, screenStyles.description]}>{copy.description}</Text>
+          {!hideTabSwitcher ? (
+            <View style={screenStyles.tabs}>
+              {tabs.map((option) => {
+                const isSelected = activeTab === option.key;
+                return (
+                  <Button
+                    key={option.key}
+                    title={option.label}
+                    variant={isSelected ? 'primary' : 'secondary'}
+                    onPress={() => setTab(option.key)}
+                    icon={<Feather name={option.icon} size={18} color={isSelected ? '#fff' : palette.text} />}
+                    style={screenStyles.tabButton}
+                  />
+                );
+              })}
+            </View>
+          ) : null}
         </SectionCard>
         {renderTab()}
       </PageScroll>

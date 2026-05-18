@@ -3,7 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
-import { ActivityIndicator, Platform, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Text, useWindowDimensions, View } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useServerConfig } from '../contexts/ServerConfigContext';
 import { LoginScreen } from '../screens/LoginScreen';
@@ -16,6 +16,10 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const MainTabs = () => {
+  const { user } = useAuth();
+  const { width } = useWindowDimensions();
+  const showTabLabels = width >= 520;
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -25,6 +29,8 @@ const MainTabs = () => {
         headerTitleStyle: { fontWeight: '800', color: palette.text, fontSize: 18 },
         tabBarActiveTintColor: palette.primary,
         tabBarInactiveTintColor: palette.muted,
+        tabBarLabelPosition: showTabLabels ? 'beside-icon' : 'below-icon',
+        tabBarShowLabel: showTabLabels,
         tabBarStyle: {
           borderTopWidth: 1,
           borderTopColor: palette.border,
@@ -34,21 +40,52 @@ const MainTabs = () => {
           paddingBottom: 10,
           paddingTop: 8,
         },
+        tabBarItemStyle: {
+          paddingHorizontal: 4,
+        },
         tabBarLabelStyle: {
           fontWeight: '600',
           fontSize: 12,
+          lineHeight: 14,
         },
         tabBarIcon: ({ color, size }) => {
           if (route.name === 'Unlock') {
-            return <Feather name="unlock" color={color} size={24} />;
+            return <Feather name="unlock" color={color} size={size} />;
           }
 
-          return <Feather name="settings" color={color} size={24} />;
+          if (route.name === 'Users') {
+            return <Feather name="users" color={color} size={size} />;
+          }
+
+          if (route.name === 'Apartments') {
+            return <Feather name="home" color={color} size={size} />;
+          }
+
+          return <Feather name="user" color={color} size={size} />;
         },
       })}
     >
       <Tab.Screen name="Unlock" component={UnlockScreen} options={{ headerShown: false }} />
-      <Tab.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
+      <Tab.Screen
+        name="Users"
+        component={SettingsScreen}
+        initialParams={{ tab: 'users', hideTabSwitcher: true }}
+        options={{ headerShown: false }}
+      />
+      {user?.role === 'admin' ? (
+        <Tab.Screen
+          name="Apartments"
+          component={SettingsScreen}
+          initialParams={{ tab: 'apartments', hideTabSwitcher: true }}
+          options={{ headerShown: false, tabBarLabel: 'Apts' }}
+        />
+      ) : null}
+      <Tab.Screen
+        name="Profile"
+        component={SettingsScreen}
+        initialParams={{ tab: 'profile', hideTabSwitcher: true }}
+        options={{ headerShown: false }}
+      />
     </Tab.Navigator>
   );
 };

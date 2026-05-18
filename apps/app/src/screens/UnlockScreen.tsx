@@ -1,19 +1,16 @@
 import { Feather } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
 import * as Linking from 'expo-linking';
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { api, apiErrorMessage, authHeaders } from '../lib/api';
 import { APP_SUBTITLE } from '../lib/config';
-import { PageScroll, Screen, palette, shadows } from '../components/common/ui';
+import { Screen, palette, shadows, styles as uiStyles } from '../components/common/ui';
 
 const COOLDOWN_SECONDS = 10;
 
 export const UnlockScreen = () => {
   const { token } = useAuth();
-  const navigation = useNavigation<any>();
-  const { width } = useWindowDimensions();
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [status, setStatus] = useState('Ready to unlock');
@@ -22,7 +19,7 @@ export const UnlockScreen = () => {
   const [handledAutoUnlockUrl, setHandledAutoUnlockUrl] = useState<string | null>(null);
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const isWide = width >= 820;
+  const pulseAnim = useRef(new Animated.Value(0)).current;
 
   const cooldownLeft = useMemo(() => {
     if (!cooldownUntil) {
@@ -97,267 +94,154 @@ export const UnlockScreen = () => {
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
       toValue: 0.95,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
     }).start();
   };
 
   const handlePressOut = () => {
     Animated.spring(scaleAnim, {
       toValue: 1,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
     }).start();
   };
 
   const unlockDisabled = !token || cooldownLeft > 0 || loading;
   const unlockLabel = loading ? 'Unlocking...' : cooldownLeft > 0 ? `Wait ${cooldownLeft}s` : 'Unlock';
-  const statusTone = error ? 'Needs attention' : cooldownLeft > 0 ? 'Cooling down' : 'Ready';
 
-  const tools: Array<{ label: string; icon: keyof typeof Feather.glyphMap; detail: string }> = [
-    { label: 'Guests', icon: 'calendar', detail: 'Schedules' },
-    { label: 'PIN', icon: 'hash', detail: 'Keypad' },
-    { label: 'RFID', icon: 'credit-card', detail: 'Tokens' },
-    { label: 'Settings', icon: 'sliders', detail: 'Profile' },
-  ];
+  useEffect(() => {
+    if (unlockDisabled) {
+      pulseAnim.stopAnimation();
+      pulseAnim.setValue(0);
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.timing(pulseAnim, {
+        toValue: 1,
+        duration: 2200,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: Platform.OS !== 'web',
+      })
+    );
+
+    animation.start();
+    return () => animation.stop();
+  }, [pulseAnim, unlockDisabled]);
+
+  const ringScale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.42],
+  });
+  const ringOpacity = pulseAnim.interpolate({
+    inputRange: [0, 0.72, 1],
+    outputRange: [0.24, 0.08, 0],
+  });
 
   return (
     <Screen>
-      <PageScroll>
-        <View style={[screenStyles.header, isWide ? screenStyles.headerWide : null]}>
-          <View>
-            <Text style={screenStyles.brand}>Anlok</Text>
-            <Text style={screenStyles.subtitle}>{APP_SUBTITLE}</Text>
-          </View>
-          <View style={screenStyles.statusPill}>
-            <View style={[screenStyles.statusDot, error ? screenStyles.statusDotDanger : null]} />
-            <Text style={screenStyles.statusPillText}>{statusTone}</Text>
-          </View>
+      <View style={screenStyles.shell}>
+        <View style={screenStyles.header}>
+          <Text style={screenStyles.brand}>Anlok</Text>
+          <Text style={screenStyles.subtitle}>{APP_SUBTITLE}</Text>
         </View>
 
-        <View style={[screenStyles.dashboard, isWide ? screenStyles.dashboardWide : null]}>
-          <View style={[screenStyles.unlockCard, shadows, isWide ? screenStyles.unlockCardWide : null]}>
-            <View style={screenStyles.cardHeader}>
-              <View>
-                <Text style={screenStyles.eyebrow}>Primary access</Text>
-                <Text style={screenStyles.doorTitle}>Front door</Text>
-              </View>
-              <View style={screenStyles.doorIcon}>
-                <Feather name="home" size={20} color={palette.primary} />
-              </View>
-            </View>
-
-            <View style={screenStyles.statusBlock}>
-              <Text style={screenStyles.statusLabel}>{status}</Text>
-              <Text style={screenStyles.statusHint}>
-                {cooldownLeft > 0
-                  ? 'The door relay is cooling down before another unlock request.'
-                  : 'Tap once when you are near the entrance.'}
-              </Text>
-            </View>
-
-            <Animated.View style={[screenStyles.unlockButtonWrap, { transform: [{ scale: scaleAnim }] }]}>
-              <Pressable
-                onPressIn={handlePressIn}
-                onPressOut={handlePressOut}
-                onPress={unlockDoor}
-                disabled={unlockDisabled}
-                style={({ pressed }) => [
-                  screenStyles.unlockButton,
-                  unlockDisabled ? screenStyles.unlockButtonDisabled : null,
-                  pressed ? screenStyles.unlockButtonPressed : null,
-                ]}
-              >
-                <Feather name={loading ? 'loader' : cooldownLeft > 0 ? 'clock' : 'unlock'} size={44} color="#fff" />
-                <Text style={screenStyles.unlockButtonText}>{unlockLabel}</Text>
-              </Pressable>
-            </Animated.View>
-
-            {error ? (
-              <View style={screenStyles.errorPanel}>
-                <Feather name="alert-triangle" size={16} color={palette.danger} />
-                <Text style={screenStyles.errorText}>{error}</Text>
-              </View>
-            ) : null}
-
-            <View style={screenStyles.metricsRow}>
-              <View style={screenStyles.metric}>
-                <Text style={screenStyles.metricValue}>10s</Text>
-                <Text style={screenStyles.metricLabel}>Cooldown</Text>
-              </View>
-              <View style={screenStyles.metricDivider} />
-              <View style={screenStyles.metric}>
-                <Text style={screenStyles.metricValue}>Magic link</Text>
-                <Text style={screenStyles.metricLabel}>Session</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={screenStyles.sideColumn}>
-            <View style={screenStyles.panel}>
-              <Text style={screenStyles.panelTitle}>Access tools</Text>
-              <View style={screenStyles.toolsGrid}>
-                {tools.map((tool) => (
-                  <Pressable
-                    key={tool.label}
-                    onPress={() => navigation.navigate('Settings')}
-                    style={({ pressed }) => [screenStyles.toolTile, pressed ? { opacity: 0.72 } : null]}
-                  >
-                    <View style={screenStyles.toolIcon}>
-                      <Feather name={tool.icon} size={18} color={palette.primary} />
-                    </View>
-                    <Text style={screenStyles.toolLabel}>{tool.label}</Text>
-                    <Text style={screenStyles.toolDetail}>{tool.detail}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            <View style={screenStyles.panel}>
-              <Text style={screenStyles.panelTitle}>Recent activity</Text>
-              <View style={screenStyles.activityItem}>
-                <View style={screenStyles.activityMarker} />
-                <View style={{ flex: 1 }}>
-                  <Text style={screenStyles.activityTitle}>{status}</Text>
-                  <Text style={screenStyles.activityMeta}>This session</Text>
-                </View>
-              </View>
-              <View style={screenStyles.activityItem}>
-                <View style={[screenStyles.activityMarker, screenStyles.activityMarkerWarm]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={screenStyles.activityTitle}>Guest access managed in Settings</Text>
-                  <Text style={screenStyles.activityMeta}>PIN, RFID, schedules</Text>
-                </View>
-              </View>
-            </View>
-          </View>
+        <View style={screenStyles.stage}>
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              screenStyles.pulseRing,
+              {
+                opacity: ringOpacity,
+                transform: [{ scale: ringScale }],
+              },
+            ]}
+          />
+          <Animated.View style={[screenStyles.buttonShadow, { transform: [{ scale: scaleAnim }] }, shadows]}>
+            <Pressable
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
+              onPress={unlockDoor}
+              disabled={unlockDisabled}
+              style={({ pressed }) => [
+                screenStyles.unlockButton,
+                unlockDisabled ? screenStyles.unlockButtonDisabled : null,
+                pressed ? screenStyles.unlockButtonPressed : null,
+              ]}
+            >
+              <Feather name={loading ? 'loader' : cooldownLeft > 0 ? 'clock' : 'unlock'} size={62} color="#fff" />
+              <Text style={screenStyles.unlockButtonText}>{unlockLabel}</Text>
+            </Pressable>
+          </Animated.View>
         </View>
-      </PageScroll>
+
+        <View style={screenStyles.statusArea}>
+          <Text style={[uiStyles.subtleText, screenStyles.statusText]}>{status}</Text>
+          {error ? (
+            <View style={screenStyles.errorPanel}>
+              <Text style={screenStyles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+        </View>
+      </View>
     </Screen>
   );
 };
 
 const screenStyles = StyleSheet.create({
-  header: {
-    gap: 14,
-    paddingTop: 10,
-  },
-  headerWide: {
+  shell: {
     alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 20,
   },
   brand: {
     color: palette.text,
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: '900',
     letterSpacing: 0,
+    textAlign: 'center',
   },
   subtitle: {
     color: palette.muted,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '500',
     lineHeight: 22,
-    marginTop: 2,
+    marginTop: 8,
+    textAlign: 'center',
   },
-  statusPill: {
+  header: {
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: palette.card,
-    borderColor: palette.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    marginBottom: 74,
   },
-  statusDot: {
-    backgroundColor: palette.success,
-    borderRadius: 4,
-    height: 8,
-    width: 8,
-  },
-  statusDotDanger: {
-    backgroundColor: palette.danger,
-  },
-  statusPillText: {
-    color: palette.text,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  dashboard: {
-    gap: 16,
-  },
-  dashboardWide: {
-    alignItems: 'stretch',
-    flexDirection: 'row',
-  },
-  unlockCard: {
-    backgroundColor: palette.card,
-    borderColor: palette.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 24,
-    padding: 22,
-  },
-  unlockCardWide: {
-    flex: 1.35,
-    minHeight: 620,
-    padding: 28,
-  },
-  cardHeader: {
+  stage: {
     alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  eyebrow: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  doorTitle: {
-    color: palette.text,
-    fontSize: 24,
-    fontWeight: '900',
-    marginTop: 6,
-  },
-  doorIcon: {
-    alignItems: 'center',
-    backgroundColor: palette.primarySoft,
-    borderRadius: 8,
-    height: 44,
+    height: 250,
     justifyContent: 'center',
-    width: 44,
+    width: 250,
   },
-  statusBlock: {
-    gap: 8,
+  pulseRing: {
+    backgroundColor: palette.primarySoft,
+    borderColor: '#BFD7CA',
+    borderRadius: 125,
+    borderWidth: 1,
+    height: 250,
+    position: 'absolute',
+    width: 250,
   },
-  statusLabel: {
-    color: palette.text,
-    fontSize: 30,
-    fontWeight: '900',
-    lineHeight: 36,
-  },
-  statusHint: {
-    color: palette.muted,
-    fontSize: 15,
-    lineHeight: 22,
-    maxWidth: 460,
-  },
-  unlockButtonWrap: {
-    alignItems: 'center',
-    marginVertical: 10,
+  buttonShadow: {
+    borderRadius: 110,
+    height: 220,
+    width: 220,
   },
   unlockButton: {
     alignItems: 'center',
     backgroundColor: palette.primary,
     borderColor: '#BFD7CA',
-    borderRadius: 96,
+    borderRadius: 110,
     borderWidth: 10,
-    height: 192,
+    height: 220,
     justifyContent: 'center',
-    width: 192,
+    width: 220,
   },
   unlockButtonPressed: {
     backgroundColor: palette.primaryActive,
@@ -368,129 +252,34 @@ const screenStyles = StyleSheet.create({
   },
   unlockButtonText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
     marginTop: 12,
   },
-  errorPanel: {
+  statusArea: {
     alignItems: 'center',
+    height: 88,
+    marginTop: 52,
+    paddingHorizontal: 20,
+  },
+  statusText: {
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  errorPanel: {
     backgroundColor: '#F8E8E4',
     borderColor: '#E5B7AF',
     borderRadius: 8,
     borderWidth: 1,
-    flexDirection: 'row',
-    gap: 8,
+    marginTop: 12,
     padding: 12,
   },
   errorText: {
     color: palette.danger,
-    flex: 1,
     fontSize: 14,
     fontWeight: '700',
     lineHeight: 20,
-  },
-  metricsRow: {
-    borderColor: palette.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    flexDirection: 'row',
-  },
-  metric: {
-    flex: 1,
-    gap: 4,
-    padding: 14,
-  },
-  metricDivider: {
-    backgroundColor: palette.border,
-    width: 1,
-  },
-  metricValue: {
-    color: palette.text,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  metricLabel: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  sideColumn: {
-    flex: 1,
-    gap: 16,
-  },
-  panel: {
-    backgroundColor: palette.card,
-    borderColor: palette.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 14,
-    padding: 18,
-  },
-  panelTitle: {
-    color: palette.text,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  toolsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  toolTile: {
-    backgroundColor: palette.field,
-    borderColor: palette.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    flexBasis: '47%',
-    flexGrow: 1,
-    gap: 7,
-    minWidth: 132,
-    padding: 14,
-  },
-  toolIcon: {
-    alignItems: 'center',
-    backgroundColor: palette.primarySoft,
-    borderRadius: 8,
-    height: 34,
-    justifyContent: 'center',
-    width: 34,
-  },
-  toolLabel: {
-    color: palette.text,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  toolDetail: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  activityItem: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: 12,
-    paddingVertical: 6,
-  },
-  activityMarker: {
-    backgroundColor: palette.success,
-    borderRadius: 5,
-    height: 10,
-    marginTop: 5,
-    width: 10,
-  },
-  activityMarkerWarm: {
-    backgroundColor: palette.warning,
-  },
-  activityTitle: {
-    color: palette.text,
-    fontSize: 14,
-    fontWeight: '800',
-    lineHeight: 20,
-  },
-  activityMeta: {
-    color: palette.muted,
-    fontSize: 13,
-    lineHeight: 19,
+    textAlign: 'center',
   },
 });
