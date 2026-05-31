@@ -2,7 +2,7 @@ export interface User {
   id: number;
   name: string;
   email?: string;
-  role: 'admin' | 'apartment_admin' | 'guest';
+  role: 'admin' | 'apartment_admin' | 'user' | 'guest';
   creator_id: number;
   apartment_id?: number;
   is_active: boolean;
@@ -69,4 +69,23 @@ export interface AuthTokenResponse {
 export interface GuestSchedulesResponse {
   recurring_schedules: RecurringSchedule[];
   one_time_access: OneTimeAccess[];
+}
+
+export interface AccessEvent {
+  id: number;
+  created_at: string;
+  method: 'pin' | 'rfid' | 'remote_unlock' | 'unknown';
+  outcome: 'granted' | 'denied';
+  user_id?: number;
+  user_name?: string;
+  user_email?: string;
+  actor_user_id?: number;
+  actor_user_name?: string;
+  credential_id?: number;
+  credential_label?: string;
+  apartment_id?: number;
+  apartment_number?: string;
+  reason?: string;
+  source?: string;
+  metadata: Record<string, unknown>;
 }

@@ -7,6 +7,7 @@ import { ActivityIndicator, Platform, Text, useWindowDimensions, View } from 're
 import { useAuth } from '../contexts/AuthContext';
 import { useServerConfig } from '../contexts/ServerConfigContext';
 import { LoginScreen } from '../screens/LoginScreen';
+import { ActivityScreen } from '../screens/ActivityScreen';
 import { ServerSetupScreen } from '../screens/ServerSetupScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { UnlockScreen } from '../screens/UnlockScreen';
@@ -53,6 +54,10 @@ const MainTabs = () => {
             return <Feather name="unlock" color={color} size={size} />;
           }
 
+          if (route.name === 'Activity') {
+            return <Feather name="activity" color={color} size={size} />;
+          }
+
           if (route.name === 'Users') {
             return <Feather name="users" color={color} size={size} />;
           }
@@ -66,6 +71,7 @@ const MainTabs = () => {
       })}
     >
       <Tab.Screen name="Unlock" component={UnlockScreen} options={{ headerShown: false }} />
+      <Tab.Screen name="Activity" component={ActivityScreen} options={{ headerShown: false }} />
       <Tab.Screen
         name="Users"
         component={SettingsScreen}

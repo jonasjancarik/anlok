@@ -23,6 +23,7 @@ Required keys:
 - `EXPO_PUBLIC_APP_SUBTITLE` (optional)
 - `EXPO_PUBLIC_SENDER_EMAIL` (optional, enables Gmail shortcut)
 - `EXPO_PUBLIC_REQUIRED_PIN_LENGTH` (optional, defaults to `4`)
+- `EXPO_PUBLIC_EAS_PROJECT_ID` (optional fallback for push notifications; EAS builds can infer this)
 
 API URL notes:
 - iOS simulator: `http://localhost:8000`
@@ -52,6 +53,8 @@ npm run android
 - RFID management (+ reader endpoint)
 - Guest schedule management (recurring + one-time)
 - API key management (admin)
+- Door activity history
+- Push notification registration for access events
 
 ## Notes
 
