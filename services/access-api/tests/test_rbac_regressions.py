@@ -2,16 +2,19 @@ import asyncio
 import datetime
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from fastapi import HTTPException
 
+import src.utils as utils
 from src.api.exceptions import APIException
 from src.api.models import ApartmentResponse, PINCreate, RFIDCreate, User, UserUpdate
 from src.api.permissions import Permission, require_permission
+from src.api.routes import doors as doors_routes
 from src.api.routes import pins as pins_routes
 from src.api.routes import rfids as rfids_routes
 from src.api.routes import users as users_routes
+from src.reader import reader as reader_module
 
 
 def make_user(user_id: int, role: str, apartment_id: int = 1) -> User:
@@ -169,6 +172,89 @@ class RBACRegressionTests(unittest.TestCase):
 
         self.assertEqual(result["rfid"].user_id, 10)
         self.assertEqual(result["rfid"].last_four_digits, "1234")
+
+    def test_remote_unlock_records_actor_access_event(self):
+        current_user = SimpleNamespace(
+            id=12,
+            role="user",
+            apartment_id=4,
+            is_active=True,
+        )
+
+        with patch(
+            "src.api.routes.doors.record_access_event"
+        ) as record_access_event, patch.object(
+            doors_routes.door_manager,
+            "unlock",
+            new=AsyncMock(return_value={"message": "Door unlock initiated"}),
+        ):
+            result = asyncio.run(doors_routes.unlock_door(current_user=current_user))
+
+        self.assertEqual(result["message"], "Door unlock initiated")
+        record_access_event.assert_called_once_with(
+            method="remote_unlock",
+            outcome="granted",
+            user_id=12,
+            actor_user_id=12,
+            apartment_id=4,
+            source="app",
+        )
+
+    def test_inactive_remote_unlock_records_denied_event(self):
+        current_user = SimpleNamespace(
+            id=12,
+            role="user",
+            apartment_id=4,
+            is_active=False,
+        )
+
+        with patch(
+            "src.api.routes.doors.record_access_event"
+        ) as record_access_event, patch.object(
+            doors_routes.door_manager,
+            "unlock",
+            new=AsyncMock(),
+        ) as unlock:
+            with self.assertRaises(APIException) as exc:
+                asyncio.run(doors_routes.unlock_door(current_user=current_user))
+
+        self.assertEqual(exc.exception.status_code, 403)
+        unlock.assert_not_called()
+        record_access_event.assert_called_once_with(
+            method="remote_unlock",
+            outcome="denied",
+            user_id=12,
+            actor_user_id=12,
+            apartment_id=4,
+            reason="inactive_user",
+            source="app",
+        )
+
+    def test_pin_reader_returns_structured_access_decision(self):
+        pin = SimpleNamespace(
+            id=23,
+            salt="pin-salt",
+            hashed_pin=utils.hash_secret("1234", "pin-salt"),
+            label="Front door",
+            user=SimpleNamespace(
+                id=99,
+                name="Resident",
+                role="user",
+                is_active=True,
+                apartment_id=8,
+            ),
+        )
+
+        with patch("src.reader.reader.get_all_pins", return_value=[pin]):
+            with patch("src.reader.reader.get_all_rfids", return_value=[]):
+                decision = reader_module.check_input("1234")
+
+        self.assertTrue(decision.allowed)
+        self.assertEqual(decision.method, "pin")
+        self.assertEqual(decision.outcome, "granted")
+        self.assertEqual(decision.user_id, 99)
+        self.assertEqual(decision.credential_id, 23)
+        self.assertEqual(decision.apartment_id, 8)
 
 
 if __name__ == "__main__":

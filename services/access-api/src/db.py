@@ -12,6 +12,7 @@ from sqlalchemy import (
     Date,
     Time,
     Boolean,
+    Text,
     func,
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship, joinedload
@@ -79,6 +80,7 @@ class User(Base):
     recurring_schedule = relationship("RecurringSchedule", back_populates="user")
     one_time_access = relationship("OneTimeAccess", back_populates="user")
     api_keys = relationship("APIKey", back_populates="user")
+    notification_devices = relationship("NotificationDevice", back_populates="user")
 
 
 @add_getitem
@@ -164,6 +166,62 @@ class APIKey(Base):
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
 
     user = relationship("User", back_populates="api_keys")
+
+
+class AccessEvent(Base):
+    __tablename__ = "access_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+    method = Column(String, nullable=False, index=True)
+    outcome = Column(String, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    actor_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    credential_id = Column(Integer, nullable=True)
+    credential_label = Column(String, nullable=True)
+    apartment_id = Column(Integer, ForeignKey("apartments.id"), nullable=True, index=True)
+    reason = Column(String, nullable=True)
+    source = Column(String, nullable=True)
+    metadata_json = Column(Text, nullable=True)
+
+    user = relationship("User", foreign_keys=[user_id], lazy="joined")
+    actor_user = relationship("User", foreign_keys=[actor_user_id], lazy="joined")
+    apartment = relationship("Apartment", lazy="joined")
+
+
+class NotificationDevice(Base):
+    __tablename__ = "notification_devices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    expo_push_token = Column(String, unique=True, nullable=False, index=True)
+    platform = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow)
+    last_registered_at = Column(DateTime, default=datetime.datetime.utcnow)
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    user = relationship("User", back_populates="notification_devices")
+
+
+class NotificationDelivery(Base):
+    __tablename__ = "notification_deliveries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    access_event_id = Column(Integer, ForeignKey("access_events.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    notification_device_id = Column(
+        Integer, ForeignKey("notification_devices.id"), nullable=False
+    )
+    status = Column(String, nullable=False, default="queued", index=True)
+    expo_ticket_id = Column(String, nullable=True)
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    access_event = relationship("AccessEvent", lazy="joined")
+    user = relationship("User", lazy="joined")
+    notification_device = relationship("NotificationDevice", lazy="joined")
 
 
 def init_db():

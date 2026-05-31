@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr, field_validator
-from typing import Optional, List
+from pydantic import BaseModel, EmailStr, Field, field_validator
+from typing import Optional, List, Any, Dict
 from datetime import date, time
 
 # Include all the Pydantic models here
@@ -178,6 +178,52 @@ class APIKeyResponse(BaseModel):
 
 class APIKeyWithSecret(APIKeyResponse):
     api_key: str
+
+
+class AccessEventResponse(BaseModel):
+    id: int
+    created_at: str
+    method: str
+    outcome: str
+    user_id: Optional[int] = None
+    user_name: Optional[str] = None
+    user_email: Optional[EmailStr] = None
+    actor_user_id: Optional[int] = None
+    actor_user_name: Optional[str] = None
+    credential_id: Optional[int] = None
+    credential_label: Optional[str] = None
+    apartment_id: Optional[int] = None
+    apartment_number: Optional[str] = None
+    reason: Optional[str] = None
+    source: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class NotificationDeviceRegister(BaseModel):
+    expo_push_token: str
+    platform: Optional[str] = None
+
+    @field_validator("expo_push_token")
+    @classmethod
+    def token_must_look_like_expo_push_token(cls, value):
+        normalized = value.strip()
+        if not (
+            normalized.startswith("ExpoPushToken[")
+            or normalized.startswith("ExponentPushToken[")
+        ):
+            raise ValueError("Invalid Expo push token")
+        return normalized
+
+
+class NotificationDeviceResponse(BaseModel):
+    id: int
+    user_id: int
+    expo_push_token: str
+    platform: Optional[str] = None
+    created_at: str
+    updated_at: str
+    last_registered_at: str
+    is_active: bool
 
 
 class VerifyAuthResponse(BaseModel):

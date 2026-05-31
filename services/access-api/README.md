@@ -2,6 +2,11 @@
 
 Simple door lock system with PIN codes, RFID tags and remote unlocking using Raspberry PI.
 
+The API records structured access events for PIN, RFID and remote unlock attempts.
+Clients can read those events through `/access-events`, scoped by role. The Expo app
+can also register Expo push tokens through `/notification-devices` so the backend can
+send access-event notifications without exposing notification credentials to clients.
+
 Client apps in this monorepo:
 
 - web: `../../apps/web`

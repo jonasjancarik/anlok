@@ -57,6 +57,10 @@ class Permission(Enum):
     # System
     READER_CONTROL = "reader:control"
     LOGS_VIEW = "logs:view"
+    ACCESS_EVENTS_LIST_ALL = "access_events:list_all"
+    ACCESS_EVENTS_LIST_APARTMENT = "access_events:list_apartment"
+    ACCESS_EVENTS_VIEW_OWN = "access_events:view_own"
+    NOTIFICATION_DEVICES_MANAGE_OWN = "notification_devices:manage_own"
 
 
 class Role(Enum):
@@ -105,6 +109,10 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
         Permission.GUESTS_VIEW_SCHEDULES,
         Permission.READER_CONTROL,
         Permission.LOGS_VIEW,
+        Permission.ACCESS_EVENTS_LIST_ALL,
+        Permission.ACCESS_EVENTS_LIST_APARTMENT,
+        Permission.ACCESS_EVENTS_VIEW_OWN,
+        Permission.NOTIFICATION_DEVICES_MANAGE_OWN,
     },
     Role.APARTMENT_ADMIN: {
         # Can manage apartment and users within apartment
@@ -137,6 +145,9 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
         Permission.API_KEYS_DELETE_OWN,
         Permission.GUESTS_MANAGE_SCHEDULES,  # within apartment
         Permission.GUESTS_VIEW_SCHEDULES,  # within apartment
+        Permission.ACCESS_EVENTS_LIST_APARTMENT,
+        Permission.ACCESS_EVENTS_VIEW_OWN,
+        Permission.NOTIFICATION_DEVICES_MANAGE_OWN,
     },
     Role.USER: {
         # Regular users - can only manage their own resources
@@ -152,6 +163,8 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
         Permission.API_KEYS_CREATE_OWN,
         Permission.API_KEYS_LIST_OWN,
         Permission.API_KEYS_DELETE_OWN,
+        Permission.ACCESS_EVENTS_VIEW_OWN,
+        Permission.NOTIFICATION_DEVICES_MANAGE_OWN,
     },
     Role.GUEST: {
         # Guests - very limited permissions
@@ -165,6 +178,8 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
         Permission.API_KEYS_LIST_OWN,
         Permission.API_KEYS_DELETE_OWN,
         Permission.GUESTS_VIEW_SCHEDULES,  # own schedules only
+        Permission.ACCESS_EVENTS_VIEW_OWN,
+        Permission.NOTIFICATION_DEVICES_MANAGE_OWN,
     },
 }
 

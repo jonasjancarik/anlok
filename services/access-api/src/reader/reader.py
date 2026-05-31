@@ -1,10 +1,12 @@
 import os
 import src.utils as utils
 from dotenv import load_dotenv
+from dataclasses import dataclass, field
 from src.db import get_all_pins, get_all_rfids, is_user_allowed_access
 from src.reader.input_handler import read_input
 from src.logger import logger
 from src.door_manager import door_manager
+from src.access_events import record_access_event
 import asyncio
 
 load_dotenv()
@@ -14,6 +16,38 @@ input_queue = asyncio.Queue()
 reader_status = "stopped"
 task_running = False
 reader_task = None
+
+
+@dataclass
+class AccessDecision:
+    allowed: bool
+    method: str
+    outcome: str
+    user_id: int | None = None
+    credential_id: int | None = None
+    credential_label: str | None = None
+    apartment_id: int | None = None
+    reason: str | None = None
+    metadata: dict = field(default_factory=dict)
+
+
+def _decision_for_user_credential(method, credential, allowed, reason=None):
+    user = credential.user
+    metadata = {}
+    if method == "rfid":
+        metadata["last_four_digits"] = credential.last_four_digits
+
+    return AccessDecision(
+        allowed=allowed,
+        method=method,
+        outcome="granted" if allowed else "denied",
+        user_id=user.id,
+        credential_id=credential.id,
+        credential_label=credential.label,
+        apartment_id=user.apartment_id,
+        reason=reason,
+        metadata=metadata,
+    )
 
 
 def check_input(input_value):
@@ -26,7 +60,9 @@ def check_input(input_value):
                 logger.warning(
                     f"PIN used by inactive user {pin.user.id} ({pin.user.name}). Access denied."
                 )
-                return False
+                return _decision_for_user_credential(
+                    "pin", pin, False, "inactive_user"
+                )
 
             # If it's a guest user, check their access schedule
             if pin.user.role == "guest":
@@ -34,17 +70,19 @@ def check_input(input_value):
                     logger.info(
                         f"Valid PIN used by guest {pin.user.id} ({pin.user.name}) with valid access schedule"
                     )
-                    return True
+                    return _decision_for_user_credential("pin", pin, True)
                 else:
                     logger.warning(
                         f"Valid PIN used by guest {pin.user.id} ({pin.user.name}) outside of allowed schedule"
                     )
-                    return False
+                    return _decision_for_user_credential(
+                        "pin", pin, False, "outside_allowed_schedule"
+                    )
             # For non-guest active users, allow access
             logger.info(
                 f"Valid PIN used by active user {pin.user.id} ({pin.user.name}) - PID: {os.getpid()}"
             )
-            return True
+            return _decision_for_user_credential("pin", pin, True)
 
     # If not a PIN, check if it's an RFID
     all_rfids = get_all_rfids()
@@ -55,7 +93,9 @@ def check_input(input_value):
                 logger.warning(
                     f"RFID used by inactive user {rfid.user.id} ({rfid.user.name}). Access denied."
                 )
-                return False
+                return _decision_for_user_credential(
+                    "rfid", rfid, False, "inactive_user"
+                )
 
             # If it's a guest user, check their access schedule
             if rfid.user.role == "guest":
@@ -63,20 +103,27 @@ def check_input(input_value):
                     logger.info(
                         f"Valid RFID used by guest {rfid.user.id} ({rfid.user.name}) with valid access schedule"
                     )
-                    return True
+                    return _decision_for_user_credential("rfid", rfid, True)
                 else:
                     logger.warning(
                         f"Valid RFID used by guest {rfid.user.id} ({rfid.user.name}) outside of allowed schedule"
                     )
-                    return False
+                    return _decision_for_user_credential(
+                        "rfid", rfid, False, "outside_allowed_schedule"
+                    )
             # For non-guest active users, allow access
             logger.info(
                 f"Valid RFID used by active user {rfid.user.id} ({rfid.user.name}) - PID: {os.getpid()}"
             )
-            return True
+            return _decision_for_user_credential("rfid", rfid, True)
 
     logger.warning("Invalid PIN or RFID attempted (this is normal after /rfids/read)")
-    return False
+    return AccessDecision(
+        allowed=False,
+        method="unknown",
+        outcome="denied",
+        reason="unknown_credential",
+    )
 
 
 async def input_reader():
@@ -108,14 +155,27 @@ async def input_processor():
         try:
             # Use a timeout here to allow checking task_running periodically
             input_value = await asyncio.wait_for(input_queue.get(), timeout=1)
-            logger.debug(f"Input value: {input_value}")
+            logger.debug("Input received from reader")
             if input_value:
-                if check_input(input_value) is True:
+                decision = check_input(input_value)
+                record_access_event(
+                    method=decision.method,
+                    outcome=decision.outcome,
+                    user_id=decision.user_id,
+                    credential_id=decision.credential_id,
+                    credential_label=decision.credential_label,
+                    apartment_id=decision.apartment_id,
+                    reason=decision.reason,
+                    source="reader",
+                    metadata=decision.metadata,
+                    notify=decision.user_id is not None,
+                )
+                if decision.allowed:
                     await door_manager.unlock(
                         utils.unlock_door, utils.RELAY_ACTIVATION_TIME
                     )
                 else:
-                    logger.debug(f"Invalid input: {input_value}")
+                    logger.debug("Reader input did not grant access")
         except asyncio.TimeoutError:
             logger.debug("Timeout reached in input processor")
             continue  # Just continue if no input received

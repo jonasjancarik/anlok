@@ -18,8 +18,11 @@ from src.api.routes.reader import router as reader_router
 from src.api.routes.api_keys import router as api_keys_router
 from src.api.routes.health import router as health_router
 from src.api.routes.logs import router as logs_router
+from src.api.routes.access_events import router as access_events_router
+from src.api.routes.notification_devices import router as notification_devices_router
 from src.api.exceptions import configure_exception_handlers
 from src.api.dependencies import get_current_user
+from src.db import init_db
 
 load_dotenv()
 
@@ -38,23 +41,31 @@ log_file = os.path.join(LOGS_DIR, "app.log")
 # Get root logger
 logger = logging.getLogger()
 
-# Only configure handlers if they haven't been configured yet
-if not logger.hasHandlers():
-    logger.setLevel(logging.INFO)
+# Ensure the API process always writes the admin-readable rotating log file.
+logger.setLevel(logging.INFO)
 
-    # File Handler
+has_file_handler = any(
+    isinstance(handler, RotatingFileHandler)
+    and getattr(handler, "baseFilename", None) == os.path.abspath(log_file)
+    for handler in logger.handlers
+)
+if not has_file_handler:
     file_handler = RotatingFileHandler(
         log_file, maxBytes=1024 * 1024 * 5, backupCount=5
     )
     file_handler.setFormatter(log_formatter)
     file_handler.setLevel(logging.INFO)
+    logger.addHandler(file_handler)
 
-    # Console Handler
+has_console_handler = any(
+    isinstance(handler, logging.StreamHandler)
+    and not isinstance(handler, RotatingFileHandler)
+    for handler in logger.handlers
+)
+if not has_console_handler:
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(log_formatter)
     console_handler.setLevel(logging.INFO)
-
-    logger.addHandler(file_handler)
     logger.addHandler(console_handler)
 
 # Get a specific logger for the app
@@ -69,6 +80,7 @@ async def lifespan(app: FastAPI):
     global _lifespan_started
     if not _lifespan_started:
         _lifespan_started = True
+        init_db()
         app_logger.info("Application startup: Starting RFID reader...")
         start_reader()
     yield
@@ -102,6 +114,8 @@ authenticated_router.include_router(reader_router)
 authenticated_router.include_router(api_keys_router)
 authenticated_router.include_router(health_router)
 authenticated_router.include_router(logs_router)
+authenticated_router.include_router(access_events_router)
+authenticated_router.include_router(notification_devices_router)
 
 # Add the authenticated router to the app
 app.include_router(authenticated_router)
