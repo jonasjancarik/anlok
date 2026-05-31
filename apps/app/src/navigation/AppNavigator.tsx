@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 import { ActivityIndicator, Platform, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { useServerConfig } from '../contexts/ServerConfigContext';
 import { LoginScreen } from '../screens/LoginScreen';
@@ -15,11 +16,29 @@ import { palette } from '../components/common/ui';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+const TAB_BAR_BASE_HEIGHT = 64;
+const TAB_BAR_BASE_BOTTOM_PADDING = 10;
+const TAB_BAR_SAFE_AREA_GAP = 8;
+const TAB_BAR_COMPACT_SAFE_AREA_MAX = 16;
+const ANDROID_LARGE_BOTTOM_SYSTEM_BAR_MIN_INSET = 40;
 
 const MainTabs = () => {
   const { user } = useAuth();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const showTabLabels = width >= 520;
+  const hasLargeAndroidBottomSystemBar =
+    Platform.OS === 'android' &&
+    insets.bottom >= ANDROID_LARGE_BOTTOM_SYSTEM_BAR_MIN_INSET;
+  const compactBottomInset = Math.min(insets.bottom, TAB_BAR_COMPACT_SAFE_AREA_MAX);
+  const tabBarBottomPadding = hasLargeAndroidBottomSystemBar
+    ? insets.bottom + TAB_BAR_SAFE_AREA_GAP
+    : Math.max(
+        TAB_BAR_BASE_BOTTOM_PADDING,
+        Platform.OS === 'android' ? compactBottomInset : insets.bottom
+      );
+  const tabBarHeight =
+    TAB_BAR_BASE_HEIGHT + Math.max(0, tabBarBottomPadding - TAB_BAR_BASE_BOTTOM_PADDING);
 
   return (
     <Tab.Navigator
@@ -37,8 +56,8 @@ const MainTabs = () => {
           borderTopColor: palette.border,
           elevation: 0,
           backgroundColor: palette.card,
-          height: 64,
-          paddingBottom: 10,
+          height: tabBarHeight,
+          paddingBottom: tabBarBottomPadding,
           paddingTop: 8,
         },
         tabBarItemStyle: {
