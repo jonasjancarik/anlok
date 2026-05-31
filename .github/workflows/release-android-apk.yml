@@ -1,0 +1,129 @@
+name: Release Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing git tag to publish, for example v1.0.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-android-apk-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build APK and attach release asset
+    runs-on: ubuntu-latest
+    env:
+      APK_DIR: release-artifacts
+      CI: true
+      SENTRY_DISABLE_AUTO_UPLOAD: true
+    steps:
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+
+          if [[ -z "${tag}" ]]; then
+            echo "Release tag is required." >&2
+            exit 1
+          fi
+
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "apk_name=anlok-${tag}.apk" >> "${GITHUB_OUTPUT}"
+
+      - name: Check for uploaded APK
+        id: existing_apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.release.outputs.tag }}
+          APK_NAME: ${{ steps.release.outputs.apk_name }}
+        shell: bash
+        run: |
+          asset_names="$(gh release view "${TAG}" --json assets --jq '.assets[].name' 2>/dev/null || true)"
+
+          if grep -Fxq "${APK_NAME}" <<< "${asset_names}"; then
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+            echo "APK ${APK_NAME} already exists on release ${TAG}; skipping build."
+          else
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Checkout
+        if: steps.existing_apk.outputs.exists != 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        if: steps.existing_apk.outputs.exists != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/app/package-lock.json
+
+      - name: Setup Java
+        if: steps.existing_apk.outputs.exists != 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install dependencies
+        if: steps.existing_apk.outputs.exists != 'true'
+        working-directory: apps/app
+        run: npm ci
+
+      - name: Build release APK
+        if: steps.existing_apk.outputs.exists != 'true'
+        working-directory: apps/app
+        run: npm run android:apk
+        env:
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL || secrets.EXPO_PUBLIC_API_URL || '' }}
+          EXPO_PUBLIC_APP_TITLE: ${{ vars.EXPO_PUBLIC_APP_TITLE || secrets.EXPO_PUBLIC_APP_TITLE || '' }}
+          EXPO_PUBLIC_APP_SUBTITLE: ${{ vars.EXPO_PUBLIC_APP_SUBTITLE || secrets.EXPO_PUBLIC_APP_SUBTITLE || '' }}
+          EXPO_PUBLIC_SENDER_EMAIL: ${{ vars.EXPO_PUBLIC_SENDER_EMAIL || secrets.EXPO_PUBLIC_SENDER_EMAIL || '' }}
+          EXPO_PUBLIC_REQUIRED_PIN_LENGTH: ${{ vars.EXPO_PUBLIC_REQUIRED_PIN_LENGTH || secrets.EXPO_PUBLIC_REQUIRED_PIN_LENGTH || '4' }}
+          EXPO_PUBLIC_EAS_PROJECT_ID: ${{ vars.EXPO_PUBLIC_EAS_PROJECT_ID || secrets.EXPO_PUBLIC_EAS_PROJECT_ID || '' }}
+
+      - name: Prepare release asset
+        if: steps.existing_apk.outputs.exists != 'true'
+        working-directory: apps/app
+        shell: bash
+        run: |
+          mkdir -p "${APK_DIR}"
+          cp android/app/build/outputs/apk/release/app-release.apk "${APK_DIR}/${{ steps.release.outputs.apk_name }}"
+          ls -lh "${APK_DIR}/${{ steps.release.outputs.apk_name }}"
+
+      - name: Upload workflow artifact
+        if: steps.existing_apk.outputs.exists != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: apps/app/${{ env.APK_DIR }}/${{ steps.release.outputs.apk_name }}
+          if-no-files-found: error
+
+      - name: Create or update GitHub Release
+        if: steps.existing_apk.outputs.exists != 'true'
+        working-directory: apps/app
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.release.outputs.tag }}
+          APK: ${{ env.APK_DIR }}/${{ steps.release.outputs.apk_name }}
+        shell: bash
+        run: |
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" "${APK}" --clobber
+          else
+            gh release create "${TAG}" "${APK}" --title "${TAG}" --notes "Android APK build for ${TAG}." --verify-tag
+          fi

@@ -43,6 +43,33 @@ npm run ios
 npm run android
 ```
 
+## Android APK Releases
+
+GitHub Actions can build a release APK and attach it to a GitHub Release:
+
+1. Commit the release changes and create a tag, for example `v1.0.0`.
+2. Push the tag to GitHub.
+3. Run the `Release Android APK` workflow with that tag.
+
+The uploaded asset is named `anlok-v1.0.0.apk`. If the asset already exists on the release, the workflow skips the build.
+
+Optional GitHub Actions variables or secrets:
+
+- `EXPO_PUBLIC_API_URL`
+- `EXPO_PUBLIC_APP_TITLE`
+- `EXPO_PUBLIC_APP_SUBTITLE`
+- `EXPO_PUBLIC_SENDER_EMAIL`
+- `EXPO_PUBLIC_REQUIRED_PIN_LENGTH`
+- `EXPO_PUBLIC_EAS_PROJECT_ID`
+
+Local fallback:
+
+```bash
+npm run android:doctor
+npm run android:apk
+npm run android:release:upload -- v1.0.0
+```
+
 ## Feature Parity
 
 - Passwordless login via magic link (`/auth/magic-links`, `/auth/tokens`)

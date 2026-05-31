@@ -5,6 +5,10 @@
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
+    "android:doctor": "bash ./scripts/android-local-build.sh doctor",
+    "android:prebuild": "bash ./scripts/android-local-build.sh prebuild",
+    "android:apk": "bash ./scripts/android-local-build.sh apk",
+    "android:release:upload": "bash ./scripts/android-release-upload.sh",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit"
