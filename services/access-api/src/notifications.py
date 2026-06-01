@@ -1,12 +1,21 @@
 import json
 import os
-import urllib.error
-import urllib.request
+import time
+from dataclasses import dataclass
+from typing import Optional
 
 import src.access_event_store as access_event_store
 from src.logger import logger
 
-EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
+FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
+
+
+@dataclass
+class ProviderResult:
+    status: str
+    provider_message_id: Optional[str] = None
+    error: Optional[str] = None
+    deactivate_device: bool = False
 
 
 def _event_title(event):
@@ -40,20 +49,271 @@ def _event_body(event):
     return f"{subject} was used but access was denied."
 
 
-def _send_expo_messages(messages):
-    headers = {"Content-Type": "application/json"}
-    access_token = os.getenv("EXPO_PUSH_ACCESS_TOKEN")
-    if access_token:
-        headers["Authorization"] = f"Bearer {access_token}"
+def _notification_data(event, access_event_id):
+    return {
+        "type": "access_event",
+        "access_event_id": str(access_event_id),
+        "method": event["method"],
+        "outcome": event["outcome"],
+    }
 
-    request = urllib.request.Request(
-        EXPO_PUSH_URL,
-        data=json.dumps(messages).encode("utf-8"),
-        headers=headers,
-        method="POST",
+
+def _read_env_file_or_value(file_key, value_key):
+    value = os.getenv(value_key)
+    if value:
+        return value.replace("\\n", "\n")
+
+    file_path = os.getenv(file_key)
+    if not file_path:
+        return None
+    with open(file_path, "r", encoding="utf-8") as key_file:
+        return key_file.read()
+
+
+def _json_or_file(json_key, file_key):
+    value = os.getenv(json_key)
+    if value:
+        return json.loads(value)
+
+    file_path = os.getenv(file_key)
+    if not file_path:
+        return None
+    with open(file_path, "r", encoding="utf-8") as json_file:
+        return json.load(json_file)
+
+
+def _send_apns(device, title, body, data):
+    team_id = os.getenv("APNS_TEAM_ID")
+    key_id = os.getenv("APNS_KEY_ID")
+    topic = os.getenv("APNS_TOPIC")
+    try:
+        private_key = _read_env_file_or_value("APNS_KEY_FILE", "APNS_PRIVATE_KEY")
+    except OSError as error:
+        return ProviderResult(status="error", error=f"Failed to read APNs key: {error}")
+    environment = device.get("environment") or os.getenv(
+        "APNS_DEFAULT_ENVIRONMENT", "production"
     )
-    with urllib.request.urlopen(request, timeout=10) as response:
-        return json.loads(response.read().decode("utf-8"))
+
+    missing = [
+        key
+        for key, value in {
+            "APNS_TEAM_ID": team_id,
+            "APNS_KEY_ID": key_id,
+            "APNS_TOPIC": topic,
+            "APNS_KEY_FILE or APNS_PRIVATE_KEY": private_key,
+        }.items()
+        if not value
+    ]
+    if missing:
+        return ProviderResult(
+            status="error",
+            error=f"APNs is not configured; missing {', '.join(missing)}",
+        )
+
+    try:
+        import httpx
+        import jwt
+    except ImportError as error:
+        return ProviderResult(status="error", error=f"Missing APNs dependency: {error}")
+
+    host = (
+        "api.sandbox.push.apple.com"
+        if environment == "sandbox"
+        else "api.push.apple.com"
+    )
+    auth_token = jwt.encode(
+        {"iss": team_id, "iat": int(time.time())},
+        private_key,
+        algorithm="ES256",
+        headers={"kid": key_id},
+    )
+    payload = {
+        "aps": {
+            "alert": {"title": title, "body": body},
+            "sound": "default",
+        },
+        "data": data,
+    }
+    headers = {
+        "authorization": f"bearer {auth_token}",
+        "apns-topic": topic,
+        "apns-push-type": "alert",
+        "apns-priority": "10",
+    }
+
+    try:
+        with httpx.Client(http2=True, timeout=10) as client:
+            response = client.post(
+                f"https://{host}/3/device/{device['push_token']}",
+                headers=headers,
+                json=payload,
+            )
+    except Exception as error:
+        return ProviderResult(status="error", error=str(error))
+
+    if response.status_code == 200:
+        return ProviderResult(
+            status="sent",
+            provider_message_id=response.headers.get("apns-id"),
+        )
+
+    reason = None
+    try:
+        reason = response.json().get("reason")
+    except json.JSONDecodeError:
+        reason = response.text
+
+    return ProviderResult(
+        status="error",
+        provider_message_id=response.headers.get("apns-id"),
+        error=f"APNs {response.status_code}: {reason}",
+        deactivate_device=reason == "Unregistered",
+    )
+
+
+def _fcm_credentials():
+    try:
+        import google.auth
+        from google.auth.transport.requests import Request
+        from google.oauth2 import service_account
+    except ImportError as error:
+        raise RuntimeError(f"Missing FCM dependency: {error}") from error
+
+    service_account_info = _json_or_file(
+        "FCM_SERVICE_ACCOUNT_JSON", "FCM_SERVICE_ACCOUNT_FILE"
+    )
+    if service_account_info:
+        credentials = service_account.Credentials.from_service_account_info(
+            service_account_info, scopes=[FCM_SCOPE]
+        )
+        project_id = os.getenv("FCM_PROJECT_ID") or service_account_info.get(
+            "project_id"
+        )
+    elif os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or os.getenv("FCM_USE_ADC"):
+        credentials, project_id = google.auth.default(scopes=[FCM_SCOPE])
+        project_id = os.getenv("FCM_PROJECT_ID") or project_id
+    else:
+        raise RuntimeError(
+            "FCM is not configured; missing FCM_SERVICE_ACCOUNT_FILE "
+            "or FCM_SERVICE_ACCOUNT_JSON"
+        )
+
+    if not project_id:
+        raise RuntimeError("FCM is not configured; missing FCM_PROJECT_ID")
+
+    credentials.refresh(Request())
+    return credentials, project_id
+
+
+def _fcm_error_code(error_json):
+    error = error_json.get("error") or {}
+    for detail in error.get("details") or []:
+        code = detail.get("errorCode")
+        if code:
+            return code
+    return error.get("status") or error.get("message")
+
+
+def _send_fcm(device, title, body, data):
+    try:
+        import httpx
+    except ImportError as error:
+        return ProviderResult(status="error", error=f"Missing FCM dependency: {error}")
+
+    try:
+        credentials, project_id = _fcm_credentials()
+    except Exception as error:
+        return ProviderResult(status="error", error=str(error))
+
+    message_data = {key: str(value) for key, value in data.items()}
+    payload = {
+        "message": {
+            "token": device["push_token"],
+            "notification": {"title": title, "body": body},
+            "data": message_data,
+            "android": {
+                "notification": {
+                    "channel_id": "door-activity",
+                    "sound": "default",
+                }
+            },
+        }
+    }
+    headers = {"Authorization": f"Bearer {credentials.token}"}
+
+    try:
+        response = httpx.post(
+            f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send",
+            headers=headers,
+            json=payload,
+            timeout=10,
+        )
+    except Exception as error:
+        return ProviderResult(status="error", error=str(error))
+
+    if response.status_code == 200:
+        response_data = response.json()
+        return ProviderResult(
+            status="sent", provider_message_id=response_data.get("name")
+        )
+
+    try:
+        error_json = response.json()
+    except json.JSONDecodeError:
+        error_json = {"error": {"message": response.text}}
+    error_code = _fcm_error_code(error_json)
+    return ProviderResult(
+        status="error",
+        error=f"FCM {response.status_code}: {error_code}",
+        deactivate_device=error_code == "UNREGISTERED",
+    )
+
+
+def _send_device_notification(device, title, body, data):
+    provider = device.get("provider")
+    if provider == "apns":
+        return _send_apns(device, title, body, data)
+    if provider == "fcm":
+        return _send_fcm(device, title, body, data)
+    return ProviderResult(status="error", error=f"Unsupported provider: {provider}")
+
+
+def send_test_notification(user_id):
+    devices = access_event_store.get_active_notification_devices(user_id)
+    results = []
+
+    for device in devices:
+        result = _send_device_notification(
+            device,
+            "Anlok notification test",
+            "Notifications are configured for this device.",
+            {"type": "notification_test"},
+        )
+        if result.status != "sent":
+            logger.error(
+                "Failed to send %s test notification to user %s: %s",
+                device.get("provider"),
+                user_id,
+                result.error,
+            )
+        if result.deactivate_device:
+            access_event_store.deactivate_notification_device(device["push_token"])
+        results.append(
+            {
+                "notification_device_id": device["id"],
+                "provider": device["provider"],
+                "platform": device.get("platform"),
+                "environment": device.get("environment"),
+                "status": result.status,
+                "provider_message_id": result.provider_message_id,
+                "error": result.error,
+            }
+        )
+
+    return {
+        "sent": any(result["status"] == "sent" for result in results),
+        "results": results,
+    }
 
 
 def send_access_event_notifications(access_event_id):
@@ -65,58 +325,29 @@ def send_access_event_notifications(access_event_id):
     if not devices:
         return
 
-    messages = []
-    delivery_ids = []
+    title = _event_title(event)
+    body = _event_body(event)
+    data = _notification_data(event, access_event_id)
+
     for device in devices:
         delivery_id = access_event_store.create_notification_delivery(
             access_event_id=access_event_id,
             user_id=event["user_id"],
             notification_device_id=device["id"],
         )
-        delivery_ids.append((delivery_id, device["expo_push_token"]))
-        messages.append(
-            {
-                "to": device["expo_push_token"],
-                "sound": "default",
-                "title": _event_title(event),
-                "body": _event_body(event),
-                "data": {
-                    "type": "access_event",
-                    "access_event_id": access_event_id,
-                    "method": event["method"],
-                    "outcome": event["outcome"],
-                },
-            }
+        result = _send_device_notification(device, title, body, data)
+        if result.status != "sent":
+            logger.error(
+                "Failed to send %s notification for access event %s: %s",
+                device.get("provider"),
+                access_event_id,
+                result.error,
+            )
+        access_event_store.update_notification_delivery(
+            delivery_id,
+            result.status,
+            result.provider_message_id,
+            result.error,
         )
-
-    try:
-        response = _send_expo_messages(messages)
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
-        logger.error("Failed to send access event notifications: %s", error)
-        for delivery_id, _token in delivery_ids:
-            access_event_store.update_notification_delivery(
-                delivery_id, "error", error=str(error)
-            )
-        return
-
-    tickets = response.get("data", [])
-    if isinstance(tickets, dict):
-        tickets = [tickets]
-
-    for index, (delivery_id, token) in enumerate(delivery_ids):
-        ticket = tickets[index] if index < len(tickets) else {}
-        status = ticket.get("status")
-        ticket_id = ticket.get("id")
-        details = ticket.get("details") or {}
-        error = details.get("error") or ticket.get("message")
-
-        if status == "ok":
-            access_event_store.update_notification_delivery(
-                delivery_id, "sent", ticket_id, None
-            )
-        else:
-            access_event_store.update_notification_delivery(
-                delivery_id, "error", ticket_id, error
-            )
-            if error == "DeviceNotRegistered":
-                access_event_store.deactivate_notification_device(token)
+        if result.deactivate_device:
+            access_event_store.deactivate_notification_device(device["push_token"])

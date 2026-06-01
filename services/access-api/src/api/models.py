@@ -200,30 +200,74 @@ class AccessEventResponse(BaseModel):
 
 
 class NotificationDeviceRegister(BaseModel):
-    expo_push_token: str
+    push_token: str
+    provider: str
     platform: Optional[str] = None
+    environment: Optional[str] = None
 
-    @field_validator("expo_push_token")
+    @field_validator("push_token")
     @classmethod
-    def token_must_look_like_expo_push_token(cls, value):
+    def token_must_not_be_empty(cls, value):
         normalized = value.strip()
-        if not (
-            normalized.startswith("ExpoPushToken[")
-            or normalized.startswith("ExponentPushToken[")
-        ):
-            raise ValueError("Invalid Expo push token")
+        if not normalized:
+            raise ValueError("Push token is required")
+        return normalized
+
+    @field_validator("provider")
+    @classmethod
+    def provider_must_be_supported(cls, value):
+        normalized = value.strip().lower()
+        if normalized not in {"apns", "fcm"}:
+            raise ValueError("Provider must be apns or fcm")
+        return normalized
+
+    @field_validator("platform")
+    @classmethod
+    def platform_must_be_supported(cls, value):
+        if value is None:
+            return value
+        normalized = value.strip().lower()
+        if normalized not in {"ios", "android"}:
+            raise ValueError("Platform must be ios or android")
+        return normalized
+
+    @field_validator("environment")
+    @classmethod
+    def environment_must_be_supported(cls, value):
+        if value is None:
+            return value
+        normalized = value.strip().lower()
+        if normalized not in {"sandbox", "production"}:
+            raise ValueError("Environment must be sandbox or production")
         return normalized
 
 
 class NotificationDeviceResponse(BaseModel):
     id: int
     user_id: int
-    expo_push_token: str
+    push_token: str
+    provider: str
     platform: Optional[str] = None
+    environment: Optional[str] = None
     created_at: str
     updated_at: str
     last_registered_at: str
     is_active: bool
+
+
+class NotificationTestResult(BaseModel):
+    notification_device_id: int
+    provider: str
+    platform: Optional[str] = None
+    environment: Optional[str] = None
+    status: str
+    provider_message_id: Optional[str] = None
+    error: Optional[str] = None
+
+
+class NotificationTestResponse(BaseModel):
+    sent: bool
+    results: List[NotificationTestResult]
 
 
 class VerifyAuthResponse(BaseModel):

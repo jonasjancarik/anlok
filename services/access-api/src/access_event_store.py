@@ -147,8 +147,10 @@ def _notification_device_to_dict(device):
     return {
         "id": device.id,
         "user_id": device.user_id,
-        "expo_push_token": device.expo_push_token,
+        "push_token": device.push_token,
+        "provider": device.provider,
         "platform": device.platform,
+        "environment": device.environment,
         "created_at": str(device.created_at),
         "updated_at": str(device.updated_at),
         "last_registered_at": str(device.last_registered_at),
@@ -156,25 +158,34 @@ def _notification_device_to_dict(device):
     }
 
 
-def upsert_notification_device(user_id, expo_push_token, platform=None):
+def upsert_notification_device(
+    user_id, push_token, provider, platform=None, environment=None
+):
     now = datetime.datetime.utcnow()
     with get_db() as db:
         device = (
             db.query(NotificationDevice)
-            .filter(NotificationDevice.expo_push_token == expo_push_token)
+            .filter(NotificationDevice.push_token == push_token)
             .first()
         )
         if device:
             device.user_id = user_id
+            device.push_token = push_token
+            device.legacy_expo_push_token = push_token
+            device.provider = provider
             device.platform = platform
+            device.environment = environment
             device.updated_at = now
             device.last_registered_at = now
             device.is_active = True
         else:
             device = NotificationDevice(
                 user_id=user_id,
-                expo_push_token=expo_push_token,
+                push_token=push_token,
+                legacy_expo_push_token=push_token,
+                provider=provider,
                 platform=platform,
+                environment=environment,
                 created_at=now,
                 updated_at=now,
                 last_registered_at=now,
@@ -188,11 +199,11 @@ def upsert_notification_device(user_id, expo_push_token, platform=None):
         return _notification_device_to_dict(device)
 
 
-def deactivate_notification_device(expo_push_token, user_id=None):
+def deactivate_notification_device(push_token, user_id=None):
     now = datetime.datetime.utcnow()
     with get_db() as db:
         query = db.query(NotificationDevice).filter(
-            NotificationDevice.expo_push_token == expo_push_token
+            NotificationDevice.push_token == push_token
         )
         if user_id is not None:
             query = query.filter(NotificationDevice.user_id == user_id)
@@ -213,6 +224,8 @@ def get_active_notification_devices(user_id):
             .filter(
                 NotificationDevice.user_id == user_id,
                 NotificationDevice.is_active.is_(True),
+                NotificationDevice.push_token.isnot(None),
+                NotificationDevice.provider.in_(("apns", "fcm")),
             )
             .all()
         )
@@ -233,7 +246,9 @@ def create_notification_delivery(access_event_id, user_id, notification_device_i
         return delivery.id
 
 
-def update_notification_delivery(delivery_id, status, expo_ticket_id=None, error=None):
+def update_notification_delivery(
+    delivery_id, status, provider_message_id=None, error=None
+):
     now = datetime.datetime.utcnow()
     with get_db() as db:
         delivery = (
@@ -244,7 +259,7 @@ def update_notification_delivery(delivery_id, status, expo_ticket_id=None, error
         if not delivery:
             return False
         delivery.status = status
-        delivery.expo_ticket_id = expo_ticket_id
+        delivery.provider_message_id = provider_message_id
         delivery.error = error
         delivery.updated_at = now
         db.commit()

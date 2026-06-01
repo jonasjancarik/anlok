@@ -23,12 +23,16 @@ Required keys:
 - `EXPO_PUBLIC_APP_SUBTITLE` (optional)
 - `EXPO_PUBLIC_SENDER_EMAIL` (optional, enables Gmail shortcut)
 - `EXPO_PUBLIC_REQUIRED_PIN_LENGTH` (optional, defaults to `4`)
-- `EXPO_PUBLIC_EAS_PROJECT_ID` (optional fallback for push notifications; EAS builds can infer this)
+- `EXPO_PUBLIC_APNS_ENVIRONMENT` (optional iOS push endpoint override: `sandbox` or `production`)
+- `EXPO_IOS_BUNDLE_IDENTIFIER` (required for signed iOS builds that receive APNs)
+- `EXPO_ANDROID_PACKAGE` (optional Android application ID override)
+- `EXPO_GOOGLE_SERVICES_FILE` (optional Android Firebase config path for native builds)
 
 API URL notes:
 - iOS simulator: `http://localhost:8000`
 - Android emulator: `http://10.0.2.2:8000`
 - Expo web: `EXPO_PUBLIC_API_URL` is the active server URL. Users cannot change it in the browser.
+- Native Android builds allow cleartext HTTP so local and Raspberry Pi backend URLs work without TLS.
 
 Server URL behavior:
 - On native, the user enters the server URL on first launch before login.
@@ -42,6 +46,35 @@ npm run ios
 # or
 npm run android
 ```
+
+## Push Notifications
+
+The native app registers platform push tokens with the backend:
+
+- iOS registers an APNs device token.
+- Android registers an FCM registration token.
+
+The app does not use Expo push tokens or the Expo push relay. Android builds that
+need FCM token generation must include Firebase app configuration. By default,
+`app.config.js` automatically sets `expo.android.googleServicesFile` when
+`google-services.json` exists at the app root; set `EXPO_GOOGLE_SERVICES_FILE`
+to point at a different file. For iOS, the backend `APNS_TOPIC` must match the
+app bundle identifier used for the signed build. Set `EXPO_IOS_BUNDLE_IDENTIFIER`
+for iOS builds and set backend `APNS_TOPIC` to the same value.
+
+The app explicitly disables `expo-notifications` auto server registration, so
+native device tokens are sent only to this backend.
+
+After a user enables notifications once, the app refreshes the backend
+registration on app start when OS notification permission is still granted. It
+also listens for native token rotation while the app is running and registers the
+new APNs/FCM token with the backend.
+
+After enabling notifications on a native build, backend delivery can be checked
+without opening the door by calling `POST /notification-devices/test` with the
+same user's API token. The response contains the APNs/FCM provider status for
+each registered device. The Profile screen also exposes this as a "Send test
+notification" action.
 
 ## Android APK Releases
 
@@ -60,7 +93,10 @@ Optional GitHub Actions variables or secrets:
 - `EXPO_PUBLIC_APP_SUBTITLE`
 - `EXPO_PUBLIC_SENDER_EMAIL`
 - `EXPO_PUBLIC_REQUIRED_PIN_LENGTH`
-- `EXPO_PUBLIC_EAS_PROJECT_ID`
+- `EXPO_PUBLIC_APNS_ENVIRONMENT`
+- `EXPO_IOS_BUNDLE_IDENTIFIER`
+- `EXPO_ANDROID_PACKAGE`
+- `EXPO_GOOGLE_SERVICES_FILE`
 
 Local fallback:
 

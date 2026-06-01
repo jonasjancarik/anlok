@@ -2,6 +2,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useServerConfig } from './ServerConfigContext';
 import { api, authHeaders } from '../lib/api';
+import {
+  subscribeToAccessNotificationTokenUpdates,
+  syncAccessNotificationRegistration,
+} from '../lib/notifications';
 import { User } from '../types/entities';
 
 const STORAGE_TOKEN = 'door-control/token';
@@ -90,6 +94,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       active = false;
     };
   }, [apiUrl, serverConfigLoading, token, logout]);
+
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+
+    void syncAccessNotificationRegistration(token);
+    const subscription = subscribeToAccessNotificationTokenUpdates(token);
+
+    return () => {
+      subscription?.remove();
+    };
+  }, [token]);
 
   const value = useMemo(
     () => ({

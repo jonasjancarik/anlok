@@ -4,8 +4,9 @@ Simple door lock system with PIN codes, RFID tags and remote unlocking using Ras
 
 The API records structured access events for PIN, RFID and remote unlock attempts.
 Clients can read those events through `/access-events`, scoped by role. The Expo app
-can also register Expo push tokens through `/notification-devices` so the backend can
-send access-event notifications without exposing notification credentials to clients.
+can also register native APNs or FCM push tokens through `/notification-devices` so
+the backend can send access-event notifications directly through Apple and Google
+without exposing notification credentials to clients.
 
 Client apps in this monorepo:
 
@@ -95,17 +96,69 @@ pip install -r requirements.txt
 
 If you encounter an error installing `evdev`, try installing the `python3-evdev` package with `sudo apt-get install python3-evdev`. In that case you may want to create the virtual environment with the `--system-site-packages` flag (i.e. `python -m venv .venv --system-site-packages`) and ignore the `evdev` package in the `requirements.txt` file with `grep -v "evdev" requirements.txt | pip install -r /dev/stdin`.
 
-If you want to get the latest versions of all the required packages, you can try running `pip install fastapi sqlalchemy boto3 python-dotenv uvicorn "pydantic[email]" rpi-lgpio evdev` directly.
+If you want to get the latest versions of all the required packages, you can try running `pip install fastapi sqlalchemy boto3 python-dotenv uvicorn "pydantic[email]" rpi-lgpio evdev "httpx[http2]" "PyJWT[crypto]" google-auth requests` directly.
 
 ### Development
 
-For development on a machine which doesn't support `RPi.GPIO` and `evdev`, run just `pip install fastapi sqlalchemy boto3 python-dotenv uvicorn "pydantic[email]"` to exclude these packages.
+For development on a machine which doesn't support `RPi.GPIO` and `evdev`, run just `pip install fastapi sqlalchemy boto3 python-dotenv uvicorn "pydantic[email]" "httpx[http2]" "PyJWT[crypto]" google-auth requests` to exclude these packages.
 
 Then run the setup script to create a dummy `RPi` package:
 
 ```bash
 ./setup_mock_rpi_gpio.sh
 ```
+
+## Push Notifications
+
+The backend sends access-event notifications directly to the platform providers:
+
+- iOS devices register APNs tokens and are sent through APNs.
+- Android devices register FCM tokens and are sent through FCM HTTP v1.
+
+The `/notification-devices` registration payload is:
+
+```json
+{
+  "push_token": "native-device-token",
+  "provider": "apns",
+  "platform": "ios",
+  "environment": "production"
+}
+```
+
+Use `provider: "fcm"` and `platform: "android"` for Android. APNs
+`environment` can be `sandbox` or `production`; if omitted, the backend uses
+`APNS_DEFAULT_ENVIRONMENT`.
+
+Required backend config for APNs:
+
+- `APNS_TEAM_ID`
+- `APNS_KEY_ID`
+- `APNS_TOPIC` (the iOS app bundle identifier)
+- `APNS_KEY_FILE` or `APNS_PRIVATE_KEY`
+
+Required backend config for FCM:
+
+- `FCM_PROJECT_ID`
+- `FCM_SERVICE_ACCOUNT_FILE` or `FCM_SERVICE_ACCOUNT_JSON`
+
+Alternatively, set `GOOGLE_APPLICATION_CREDENTIALS` and `FCM_USE_ADC=1` to use
+Google Application Default Credentials.
+
+The service account needs permission to send Firebase Cloud Messaging HTTP v1
+messages. Keep APNs `.p8` keys and FCM service account JSON files off the client
+and out of git.
+
+To verify delivery after a native app has registered a device token, call:
+
+```bash
+curl -X POST "$API_URL/notification-devices/test" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+The endpoint sends a test notification to the current user's active APNs/FCM
+devices and returns one result per registered device. It uses the same direct
+provider clients as access-event notifications.
 
 ## Networking
 

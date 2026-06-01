@@ -14,6 +14,8 @@ from sqlalchemy import (
     Boolean,
     Text,
     func,
+    inspect,
+    text,
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship, joinedload
 from contextlib import contextmanager
@@ -194,8 +196,13 @@ class NotificationDevice(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    expo_push_token = Column(String, unique=True, nullable=False, index=True)
+    push_token = Column(String, unique=True, nullable=False, index=True)
+    legacy_expo_push_token = Column(
+        "expo_push_token", String, unique=True, nullable=True
+    )
+    provider = Column(String, nullable=False, index=True)
     platform = Column(String, nullable=True)
+    environment = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow)
     last_registered_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -208,13 +215,15 @@ class NotificationDelivery(Base):
     __tablename__ = "notification_deliveries"
 
     id = Column(Integer, primary_key=True, index=True)
-    access_event_id = Column(Integer, ForeignKey("access_events.id"), nullable=False, index=True)
+    access_event_id = Column(
+        Integer, ForeignKey("access_events.id"), nullable=False, index=True
+    )
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     notification_device_id = Column(
         Integer, ForeignKey("notification_devices.id"), nullable=False
     )
     status = Column(String, nullable=False, default="queued", index=True)
-    expo_ticket_id = Column(String, nullable=True)
+    provider_message_id = Column(String, nullable=True)
     error = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -224,8 +233,72 @@ class NotificationDelivery(Base):
     notification_device = relationship("NotificationDevice", lazy="joined")
 
 
+def _column_exists(table_name, column_name):
+    inspector = inspect(engine)
+    return any(
+        column["name"] == column_name for column in inspector.get_columns(table_name)
+    )
+
+
+def _add_column_if_missing(table_name, column_name, definition):
+    if _column_exists(table_name, column_name):
+        return
+    with engine.begin() as connection:
+        connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {definition}"))
+    logger.info("Added missing database column %s.%s", table_name, column_name)
+
+
+def _create_index_if_missing(index_name, table_name, columns, unique=False):
+    unique_sql = "UNIQUE " if unique else ""
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                f"CREATE {unique_sql}INDEX IF NOT EXISTS {index_name} "
+                f"ON {table_name} ({columns})"
+            )
+        )
+
+
+def migrate_notification_schema():
+    if engine.dialect.name != "sqlite":
+        return
+
+    _add_column_if_missing(
+        "notification_devices",
+        "push_token",
+        "push_token VARCHAR",
+    )
+    _add_column_if_missing(
+        "notification_devices",
+        "provider",
+        "provider VARCHAR",
+    )
+    _add_column_if_missing(
+        "notification_devices",
+        "environment",
+        "environment VARCHAR",
+    )
+    _add_column_if_missing(
+        "notification_deliveries",
+        "provider_message_id",
+        "provider_message_id VARCHAR",
+    )
+    _create_index_if_missing(
+        "ix_notification_devices_push_token",
+        "notification_devices",
+        "push_token",
+        unique=True,
+    )
+    _create_index_if_missing(
+        "ix_notification_devices_provider",
+        "notification_devices",
+        "provider",
+    )
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
+    migrate_notification_schema()
 
 
 def add_apartment(number, description=None):
