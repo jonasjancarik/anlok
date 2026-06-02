@@ -32,6 +32,9 @@ const ScheduleManagement: React.FC<GuestScheduleManagementProps> = ({ user }) =>
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [selectedSchedule, setSelectedSchedule] = useState<any>(null);
     const [scheduleType, setScheduleType] = useState<'recurring' | 'onetime'>('recurring');
+    const hasSchedules = recurringSchedules.length > 0 || oneTimeAccess.length > 0;
+    const scheduledPinWarning =
+        'Scheduled access needs a unique PIN so time limits can be enforced. PINs for this user will be deleted and new PINs will be automatically generated.';
 
     const fetchSchedules = useCallback(async () => {
         try {
@@ -60,12 +63,16 @@ const ScheduleManagement: React.FC<GuestScheduleManagementProps> = ({ user }) =>
                 end_time: newRecurringSchedule.end_time      // Already in HH:mm format
             };
             
-            await axios.post(
+            const response = await axios.post(
                 `${process.env.NEXT_PUBLIC_API_URL}/guests/${user.id}/recurring-schedules`,
                 formattedSchedule,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-            setSuccess('Recurring schedule added successfully');
+            setSuccess(
+                response.data?.pin
+                    ? `Recurring schedule added. New PIN: ${response.data.pin}`
+                    : 'Recurring schedule added successfully'
+            );
             fetchSchedules();
             setNewRecurringSchedule({ day_of_week: 0, start_time: '09:00', end_time: '17:00' });
         } catch (error) {
@@ -103,12 +110,16 @@ const ScheduleManagement: React.FC<GuestScheduleManagementProps> = ({ user }) =>
                 end_time: newOneTimeAccess.end_time      // Already in HH:mm format
             };
 
-            await axios.post(
+            const response = await axios.post(
                 `${process.env.NEXT_PUBLIC_API_URL}/guests/${user.id}/one-time-accesses`,
                 formattedAccess,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-            setSuccess('One-time access added successfully');
+            setSuccess(
+                response.data?.pin
+                    ? `One-time access added. New PIN: ${response.data.pin}`
+                    : 'One-time access added successfully'
+            );
             fetchSchedules();
             setEndDateManuallySet(false);
             setNewOneTimeAccess({ start_date: '', end_date: '', start_time: '09:00', end_time: '17:00' });
@@ -286,6 +297,7 @@ const ScheduleManagement: React.FC<GuestScheduleManagementProps> = ({ user }) =>
                     <Modal.Title>Add Recurring Schedule</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
+                    {!hasSchedules && <Alert variant="warning">{scheduledPinWarning}</Alert>}
                     <Form onSubmit={handleAddRecurringSchedule}>
                         <InputGroup className="mb-3">
                             <InputGroup.Text>Day of Week</InputGroup.Text>
@@ -334,6 +346,7 @@ const ScheduleManagement: React.FC<GuestScheduleManagementProps> = ({ user }) =>
                     <Modal.Title>Add One-Time Access</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
+                    {!hasSchedules && <Alert variant="warning">{scheduledPinWarning}</Alert>}
                     <Form onSubmit={handleAddOneTimeAccess}>
                         <InputGroup className="mb-3">
                             <InputGroup.Text>Date</InputGroup.Text>

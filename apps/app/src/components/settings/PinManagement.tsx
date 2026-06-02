@@ -2,8 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { api, apiErrorMessage, authHeaders } from '../../lib/api';
-import { REQUIRED_PIN_LENGTH } from '../../lib/config';
-import { PIN, User } from '../../types/entities';
+import {
+  ALLOW_UNSCHEDULED_GUEST_CUSTOM_PINS,
+  REQUIRED_PIN_LENGTH,
+} from '../../lib/config';
+import { GuestSchedulesResponse, PIN, User } from '../../types/entities';
 import {
   Banner,
   Button,
@@ -52,6 +55,9 @@ const unsafePinPatterns = [
   { regex: /^(.)\1{3}$/, reason: 'repeated digits' },
 ];
 
+const sharedPinCopy =
+  'A PIN is a door code, not a private password. If two people use the same PIN, they both may get notifications when the PIN is used.';
+
 export const PinManagement = ({ token, user }: PinManagementProps) => {
   const [pins, setPins] = useState<PIN[]>([]);
   const [pin, setPin] = useState('');
@@ -60,8 +66,16 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [guestHasSchedules, setGuestHasSchedules] = useState(false);
 
-  const needsPinInput = user.role !== 'guest';
+  const needsPinInput =
+    user.role !== 'guest' ||
+    (ALLOW_UNSCHEDULED_GUEST_CUSTOM_PINS && !guestHasSchedules);
+  const guestPinCopy = guestHasSchedules
+    ? 'Scheduled guest PINs are generated automatically so scheduled access times work correctly.'
+    : ALLOW_UNSCHEDULED_GUEST_CUSTOM_PINS
+      ? 'Guests without scheduled access may choose a PIN. If scheduled access is added later, existing PINs will be replaced automatically.'
+      : 'Guest PINs are generated automatically so scheduled access times work correctly.';
 
   const pinFeedback = useMemo(() => {
     const sanitizedPin = pin.trim();
@@ -104,6 +118,29 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
   useEffect(() => {
     loadPins();
   }, [loadPins]);
+
+  useEffect(() => {
+    const loadGuestScheduleState = async () => {
+      if (user.role !== 'guest' || !ALLOW_UNSCHEDULED_GUEST_CUSTOM_PINS) {
+        setGuestHasSchedules(false);
+        return;
+      }
+
+      try {
+        const response = await api.get<GuestSchedulesResponse>(`/guests/${user.id}/schedules`, {
+          headers: authHeaders(token),
+        });
+        setGuestHasSchedules(
+          (response.data.recurring_schedules?.length ?? 0) > 0 ||
+            (response.data.one_time_access?.length ?? 0) > 0
+        );
+      } catch {
+        setGuestHasSchedules(true);
+      }
+    };
+
+    void loadGuestScheduleState();
+  }, [token, user.id, user.role]);
 
   const addPin = async () => {
     setError('');
@@ -165,6 +202,8 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
 
   return (
     <SectionCard title="Manage PINs">
+      <Banner type="info" text={sharedPinCopy} />
+
       <View style={{ gap: 6 }}>
         <FieldLabel>Label</FieldLabel>
         <Input value={label} onChangeText={setLabel} placeholder="e.g. Main keypad" />
@@ -183,7 +222,7 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
           {pinFeedback ? <Banner type="info" text={pinFeedback} /> : null}
         </View>
       ) : (
-        <SubtleText>Guest PIN will be auto-generated securely by backend.</SubtleText>
+        <SubtleText>{guestPinCopy}</SubtleText>
       )}
 
       <Button

@@ -13,9 +13,24 @@ from ..permissions import (
     require_any_permission,
     PermissionChecker,
 )
+from .. import pin_policy
 import src.db as db
 
 router = APIRouter(prefix="/guests", tags=["guests"])
+
+
+def _schedule_pin_response(user_id):
+    if db.user_has_schedules(user_id):
+        return {}
+
+    saved_pin, generated_pin = pin_policy.reset_user_pins_for_scheduled_access(
+        user_id
+    )
+    return {
+        "pin_id": saved_pin.id,
+        "pin": generated_pin,
+        "pin_reset": True,
+    }
 
 
 @router.post("/{user_id}/recurring-schedules", status_code=status.HTTP_201_CREATED)
@@ -38,10 +53,15 @@ def create_recurring_schedule(
             detail="Cannot modify schedule for guests from other apartments",
         )
 
+    pin_response = _schedule_pin_response(user_id)
     new_schedule = db.add_recurring_schedule(
         user_id, schedule.day_of_week, schedule.start_time, schedule.end_time
     )
-    return {"status": "Recurring schedule created", "schedule_id": new_schedule.id}
+    return {
+        "status": "Recurring schedule created",
+        "schedule_id": new_schedule.id,
+        **pin_response,
+    }
 
 
 @router.post("/{user_id}/one-time-accesses", status_code=status.HTTP_201_CREATED)
@@ -70,6 +90,7 @@ def create_one_time_access(
             detail="Start date must be before or equal to end date",
         )
 
+    pin_response = _schedule_pin_response(user_id)
     new_access = db.add_one_time_access(
         user_id,
         access.start_date,
@@ -77,7 +98,11 @@ def create_one_time_access(
         access.start_time,
         access.end_time,
     )
-    return {"status": "One-time access created", "access_id": new_access.id}
+    return {
+        "status": "One-time access created",
+        "access_id": new_access.id,
+        **pin_response,
+    }
 
 
 @router.get("/{user_id}/schedules", status_code=status.HTTP_200_OK)

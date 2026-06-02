@@ -3,13 +3,9 @@ from ..models import PINCreate, PINResponse, PINUpdate, User
 from ..exceptions import APIException
 from ..dependencies import get_current_user
 from ..permissions import Permission, require_any_permission, PermissionChecker
+from .. import pin_policy
 import src.db as db
 import src.utils as utils
-import random
-import os
-import dotenv
-
-dotenv.load_dotenv()
 
 router = APIRouter(prefix="/pins", tags=["pins"])
 
@@ -39,28 +35,13 @@ def create_pin(pin_request: PINCreate, current_user: User = Depends(get_current_
         user_id = current_user.id
         target_user = current_user
 
-    # For guest users, generate a random PIN if none provided
     if target_user.role == "guest":
         if pin_request.pin:
-            raise APIException(
-                status_code=400,
-                detail="PINs for guests must be automatically generated",
-            )
-
-        # Generate a random unique PIN
-        while True:
-            pin = "".join(
-                random.choices("0123456789", k=int(os.getenv("PIN_LENGTH", 4)))
-            )
-            # Check for uniqueness
-            all_pins = db.get_all_pins()
-            is_unique = True
-            for existing_pin in all_pins:
-                if utils.hash_secret(pin, existing_pin.salt) == existing_pin.hashed_pin:
-                    is_unique = False
-                    break
-            if is_unique:
-                break
+            pin_policy.enforce_guest_custom_pin_allowed(user_id)
+            pin = pin_request.pin
+            pin_policy.enforce_pin_uniqueness(pin, user_id)
+        else:
+            pin = pin_policy.generate_unique_pin()
     else:
         # For non-guest users (including regular users), PIN must be provided
         if not pin_request.pin:
@@ -69,6 +50,7 @@ def create_pin(pin_request: PINCreate, current_user: User = Depends(get_current_
                 detail="PIN must be provided for non-guest users",
             )
         pin = pin_request.pin
+        pin_policy.enforce_pin_uniqueness(pin, user_id)
 
     salt = utils.generate_salt()
     hashed_pin = utils.hash_secret(payload=pin, salt=salt)
@@ -105,12 +87,18 @@ def update_pin(
     ):
         raise APIException(status_code=403, detail="Cannot access this PIN")
 
-    salt = utils.generate_salt()
-    hashed_pin = (
-        utils.hash_secret(payload=pin_request.pin, salt=salt)
-        if pin_request.pin
-        else None
-    )
+    if pin.user.role == "guest" and pin_request.pin:
+        pin_policy.enforce_guest_custom_pin_allowed(pin.user_id)
+
+    salt = None
+    hashed_pin = None
+    if pin_request.pin:
+        pin_policy.enforce_pin_uniqueness(
+            pin_request.pin, pin.user_id, exclude_pin_id=pin_id
+        )
+        salt = utils.generate_salt()
+        hashed_pin = utils.hash_secret(payload=pin_request.pin, salt=salt)
+
     updated_pin = db.update_pin(pin_id, hashed_pin, pin_request.label, salt)
     if updated_pin:
         return {"status": "PIN updated", "pin_id": updated_pin.id}

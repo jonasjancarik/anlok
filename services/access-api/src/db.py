@@ -583,9 +583,11 @@ def update_pin(pin_id, hashed_pin, label, salt):
     with get_db() as db:
         pin = db.query(Pin).filter(Pin.id == pin_id).first()
         if pin:
-            pin.hashed_pin = hashed_pin
+            if hashed_pin is not None:
+                pin.hashed_pin = hashed_pin
+            if salt is not None:
+                pin.salt = salt
             pin.label = label
-            pin.salt = salt
             db.commit()
             db.refresh(pin)
             logger.info(f"Pin {label} updated for pin {pin_id}")
@@ -603,6 +605,16 @@ def delete_pin(pin_id):
             return True
         logger.warning(f"Attempted to delete non-existent pin with ID {pin_id}")
         return False
+
+
+def delete_pins_by_user(user_id):
+    with get_db() as db:
+        pins = db.query(Pin).filter(Pin.user_id == user_id).all()
+        for pin in pins:
+            db.delete(pin)
+        db.commit()
+        logger.info(f"Deleted {len(pins)} PINs for user {user_id}")
+        return len(pins)
 
 
 def remove_pin(pin_id):
@@ -740,6 +752,26 @@ def get_recurring_schedules_by_user(user_id):
             db.query(RecurringSchedule)
             .filter(RecurringSchedule.user_id == user_id)
             .all()
+        )
+
+
+def user_has_schedules(user_id):
+    if user_id is None:
+        return False
+
+    with get_db() as db:
+        has_recurring = (
+            db.query(RecurringSchedule)
+            .filter(RecurringSchedule.user_id == user_id)
+            .first()
+            is not None
+        )
+        if has_recurring:
+            return True
+
+        return (
+            db.query(OneTimeAccess).filter(OneTimeAccess.user_id == user_id).first()
+            is not None
         )
 
 

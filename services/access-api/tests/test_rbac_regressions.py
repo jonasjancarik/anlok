@@ -10,7 +10,9 @@ import src.utils as utils
 from src.api.exceptions import APIException
 from src.api.models import ApartmentResponse, PINCreate, RFIDCreate, User, UserUpdate
 from src.api.permissions import Permission, require_permission
+from src.api import pin_policy
 from src.api.routes import doors as doors_routes
+from src.api.routes import guests as guests_routes
 from src.api.routes import pins as pins_routes
 from src.api.routes import rfids as rfids_routes
 from src.api.routes import users as users_routes
@@ -118,14 +120,172 @@ class RBACRegressionTests(unittest.TestCase):
         )
 
         with patch("src.api.routes.pins.db.get_user", return_value=current_user):
-            with patch("src.api.routes.pins.db.save_pin", return_value=saved_pin):
-                result = pins_routes.create_pin(
-                    pin_request=PINCreate(pin="1234", label="my-pin", user_id=5),
-                    current_user=current_user,
-                )
+            with patch("src.api.routes.pins.db.get_all_pins", return_value=[]):
+                with patch("src.api.routes.pins.db.save_pin", return_value=saved_pin):
+                    result = pins_routes.create_pin(
+                        pin_request=PINCreate(pin="1234", label="my-pin", user_id=5),
+                        current_user=current_user,
+                    )
 
         self.assertEqual(result.user_id, 5)
         self.assertEqual(result.label, "my-pin")
+
+    def test_global_uniqueness_mode_rejects_duplicate_custom_pin(self):
+        current_user = make_user(5, "user")
+        existing_pin = SimpleNamespace(
+            id=77,
+            user_id=8,
+            salt="existing-salt",
+            hashed_pin=utils.hash_secret("1234", "existing-salt"),
+        )
+
+        with patch.dict("os.environ", {"PIN_UNIQUENESS_MODE": "global"}):
+            with patch("src.api.routes.pins.db.get_user", return_value=current_user):
+                with patch(
+                    "src.api.routes.pins.db.get_all_pins", return_value=[existing_pin]
+                ):
+                    with self.assertRaises(APIException) as exc:
+                        pins_routes.create_pin(
+                            pin_request=PINCreate(
+                                pin="1234", label="my-pin", user_id=5
+                            ),
+                            current_user=current_user,
+                        )
+
+        self.assertEqual(exc.exception.status_code, 400)
+        self.assertEqual(exc.exception.detail, pin_policy.DUPLICATE_PIN_DETAIL)
+
+    def test_scheduled_mode_allows_duplicate_for_unscheduled_users(self):
+        current_user = make_user(5, "user")
+        saved_pin = SimpleNamespace(
+            id=33,
+            label="my-pin",
+            created_at=datetime.datetime(2025, 6, 2, 12, 0, 0),
+        )
+        existing_pin = SimpleNamespace(
+            id=77,
+            user_id=8,
+            salt="existing-salt",
+            hashed_pin=utils.hash_secret("1234", "existing-salt"),
+        )
+
+        with patch.dict("os.environ", {"PIN_UNIQUENESS_MODE": "scheduled"}):
+            with patch("src.api.routes.pins.db.get_user", return_value=current_user):
+                with patch(
+                    "src.api.routes.pins.db.get_all_pins", return_value=[existing_pin]
+                ), patch(
+                    "src.api.routes.pins.db.user_has_schedules", return_value=False
+                ), patch(
+                    "src.api.routes.pins.db.save_pin", return_value=saved_pin
+                ):
+                    result = pins_routes.create_pin(
+                        pin_request=PINCreate(pin="1234", label="my-pin", user_id=5),
+                        current_user=current_user,
+                    )
+
+        self.assertEqual(result.user_id, 5)
+
+    def test_scheduled_mode_rejects_duplicate_of_scheduled_user_pin(self):
+        current_user = make_user(5, "user")
+        existing_pin = SimpleNamespace(
+            id=77,
+            user_id=8,
+            salt="existing-salt",
+            hashed_pin=utils.hash_secret("1234", "existing-salt"),
+        )
+
+        def user_has_schedules(user_id):
+            return user_id == 8
+
+        with patch.dict("os.environ", {"PIN_UNIQUENESS_MODE": "scheduled"}):
+            with patch("src.api.routes.pins.db.get_user", return_value=current_user):
+                with patch(
+                    "src.api.routes.pins.db.get_all_pins", return_value=[existing_pin]
+                ), patch(
+                    "src.api.routes.pins.db.user_has_schedules",
+                    side_effect=user_has_schedules,
+                ):
+                    with self.assertRaises(APIException) as exc:
+                        pins_routes.create_pin(
+                            pin_request=PINCreate(
+                                pin="1234", label="my-pin", user_id=5
+                            ),
+                            current_user=current_user,
+                        )
+
+        self.assertEqual(exc.exception.status_code, 400)
+
+    def test_first_guest_schedule_resets_pins_and_returns_generated_pin(self):
+        current_user = make_user(1, "admin")
+        guest_user = SimpleNamespace(id=9, role="guest", apartment_id=1)
+        saved_pin = SimpleNamespace(id=44)
+        saved_schedule = SimpleNamespace(id=55)
+
+        with patch("src.api.routes.guests.db.get_user", return_value=guest_user):
+            with patch("src.api.routes.guests.db.user_has_schedules", return_value=False):
+                with patch(
+                    "src.api.routes.guests.pin_policy.reset_user_pins_for_scheduled_access",
+                    return_value=(saved_pin, "2468"),
+                ) as reset_pins:
+                    with patch(
+                        "src.api.routes.guests.db.add_recurring_schedule",
+                        return_value=saved_schedule,
+                    ):
+                        result = guests_routes.create_recurring_schedule(
+                            user_id=9,
+                            schedule=guests_routes.RecurringScheduleCreate(
+                                day_of_week=0,
+                                start_time=datetime.time(9, 0),
+                                end_time=datetime.time(17, 0),
+                            ),
+                            current_user=current_user,
+                        )
+
+        reset_pins.assert_called_once_with(9)
+        self.assertEqual(result["schedule_id"], 55)
+        self.assertEqual(result["pin"], "2468")
+
+    def test_additional_guest_schedule_keeps_existing_generated_pin(self):
+        current_user = make_user(1, "admin")
+        guest_user = SimpleNamespace(id=9, role="guest", apartment_id=1)
+        saved_schedule = SimpleNamespace(id=55)
+
+        with patch("src.api.routes.guests.db.get_user", return_value=guest_user):
+            with patch("src.api.routes.guests.db.user_has_schedules", return_value=True):
+                with patch(
+                    "src.api.routes.guests.pin_policy.reset_user_pins_for_scheduled_access"
+                ) as reset_pins:
+                    with patch(
+                        "src.api.routes.guests.db.add_recurring_schedule",
+                        return_value=saved_schedule,
+                    ):
+                        result = guests_routes.create_recurring_schedule(
+                            user_id=9,
+                            schedule=guests_routes.RecurringScheduleCreate(
+                                day_of_week=0,
+                                start_time=datetime.time(9, 0),
+                                end_time=datetime.time(17, 0),
+                            ),
+                            current_user=current_user,
+                        )
+
+        reset_pins.assert_not_called()
+        self.assertNotIn("pin", result)
+
+    def test_reset_user_pins_for_scheduled_access_deletes_and_generates_pin(self):
+        saved_pin = SimpleNamespace(id=44)
+
+        with patch("src.api.pin_policy.random.choices", return_value=list("2468")):
+            with patch("src.api.pin_policy.db.get_all_pins", return_value=[]):
+                with patch("src.api.pin_policy.db.delete_pins_by_user") as delete_pins:
+                    with patch(
+                        "src.api.pin_policy.db.save_pin", return_value=saved_pin
+                    ) as save_pin:
+                        result = pin_policy.reset_user_pins_for_scheduled_access(9)
+
+        delete_pins.assert_called_once_with(9)
+        save_pin.assert_called_once()
+        self.assertEqual(result, (saved_pin, "2468"))
 
     def test_guest_can_create_own_pin(self):
         current_user = make_user(9, "guest")
@@ -136,7 +296,7 @@ class RBACRegressionTests(unittest.TestCase):
         )
 
         with patch(
-            "src.api.routes.pins.random.choices", return_value=list("1234")
+            "src.api.pin_policy.random.choices", return_value=list("1234")
         ), patch("src.api.routes.pins.db.get_all_pins", return_value=[]), patch(
             "src.api.routes.pins.db.save_pin", return_value=saved_pin
         ):
@@ -147,6 +307,56 @@ class RBACRegressionTests(unittest.TestCase):
 
         self.assertEqual(result.user_id, 9)
         self.assertEqual(result.pin, "1234")
+
+    def test_default_guest_pin_mode_rejects_custom_guest_pin(self):
+        current_user = make_user(9, "guest")
+
+        with patch.dict("os.environ", {"GUEST_PIN_MODE": "generated"}):
+            with self.assertRaises(APIException) as exc:
+                pins_routes.create_pin(
+                    pin_request=PINCreate(pin="2468", label="guest-pin"),
+                    current_user=current_user,
+                )
+
+        self.assertEqual(exc.exception.status_code, 400)
+        self.assertEqual(exc.exception.detail, pin_policy.GUEST_CUSTOM_PIN_DETAIL)
+
+    def test_guest_custom_pin_mode_allows_unscheduled_guest_pin(self):
+        current_user = make_user(9, "guest")
+        saved_pin = SimpleNamespace(
+            id=44,
+            label="guest-pin",
+            created_at=datetime.datetime(2025, 6, 2, 12, 0, 0),
+        )
+
+        with patch.dict("os.environ", {"GUEST_PIN_MODE": "custom_until_scheduled"}):
+            with patch("src.api.routes.pins.db.user_has_schedules", return_value=False):
+                with patch("src.api.routes.pins.db.get_all_pins", return_value=[]):
+                    with patch(
+                        "src.api.routes.pins.db.save_pin", return_value=saved_pin
+                    ):
+                        result = pins_routes.create_pin(
+                            pin_request=PINCreate(pin="2468", label="guest-pin"),
+                            current_user=current_user,
+                        )
+
+        self.assertEqual(result.user_id, 9)
+        self.assertEqual(result.pin, "2468")
+
+    def test_guest_custom_pin_mode_rejects_scheduled_guest_pin(self):
+        current_user = make_user(9, "guest")
+
+        with patch.dict("os.environ", {"GUEST_PIN_MODE": "custom_until_scheduled"}):
+            with patch("src.api.routes.pins.db.user_has_schedules", return_value=True):
+                with self.assertRaises(APIException) as exc:
+                    pins_routes.create_pin(
+                        pin_request=PINCreate(pin="2468", label="guest-pin"),
+                        current_user=current_user,
+                    )
+
+        self.assertEqual(exc.exception.status_code, 400)
+        self.assertEqual(exc.exception.detail, pin_policy.GUEST_CUSTOM_PIN_DETAIL)
+
 
     def test_guest_can_create_own_rfid(self):
         current_user = SimpleNamespace(
@@ -255,6 +465,92 @@ class RBACRegressionTests(unittest.TestCase):
         self.assertEqual(decision.user_id, 99)
         self.assertEqual(decision.credential_id, 23)
         self.assertEqual(decision.apartment_id, 8)
+
+    def test_pin_reader_records_shared_unscheduled_pin_matches(self):
+        pins = [
+            SimpleNamespace(
+                id=23,
+                salt="pin-salt-1",
+                hashed_pin=utils.hash_secret("1234", "pin-salt-1"),
+                label="Front door",
+                user=SimpleNamespace(
+                    id=99,
+                    name="Resident 1",
+                    role="user",
+                    is_active=True,
+                    apartment_id=8,
+                ),
+            ),
+            SimpleNamespace(
+                id=24,
+                salt="pin-salt-2",
+                hashed_pin=utils.hash_secret("1234", "pin-salt-2"),
+                label="Side door",
+                user=SimpleNamespace(
+                    id=100,
+                    name="Resident 2",
+                    role="user",
+                    is_active=True,
+                    apartment_id=8,
+                ),
+            ),
+        ]
+
+        with patch("src.reader.reader.get_all_pins", return_value=pins):
+            with patch("src.reader.reader.user_has_schedules", return_value=False):
+                decision = reader_module.check_input("1234")
+
+        self.assertTrue(decision.allowed)
+        self.assertEqual(decision.user_id, 99)
+        self.assertTrue(decision.metadata["shared_pin_match"])
+        self.assertEqual(decision.metadata["matched_user_ids"], [99, 100])
+        self.assertEqual(len(decision.metadata["matched_credentials"]), 2)
+
+    def test_pin_reader_denies_shared_pin_when_scheduled_access_matches(self):
+        pins = [
+            SimpleNamespace(
+                id=23,
+                salt="pin-salt-1",
+                hashed_pin=utils.hash_secret("1234", "pin-salt-1"),
+                label="Guest PIN",
+                user=SimpleNamespace(
+                    id=99,
+                    name="Guest",
+                    role="guest",
+                    is_active=True,
+                    apartment_id=8,
+                ),
+            ),
+            SimpleNamespace(
+                id=24,
+                salt="pin-salt-2",
+                hashed_pin=utils.hash_secret("1234", "pin-salt-2"),
+                label="Resident PIN",
+                user=SimpleNamespace(
+                    id=100,
+                    name="Resident",
+                    role="user",
+                    is_active=True,
+                    apartment_id=8,
+                ),
+            ),
+        ]
+
+        def user_has_schedules(user_id):
+            return user_id == 99
+
+        with patch("src.reader.reader.get_all_pins", return_value=pins):
+            with patch("src.reader.reader.is_user_allowed_access", return_value=True):
+                with patch(
+                    "src.reader.reader.user_has_schedules",
+                    side_effect=user_has_schedules,
+                ):
+                    decision = reader_module.check_input("1234")
+
+        self.assertFalse(decision.allowed)
+        self.assertEqual(decision.reason, "ambiguous_scheduled_pin")
+        self.assertTrue(decision.metadata["shared_pin_match"])
+        self.assertEqual(decision.metadata["matched_user_ids"], [99, 100])
 
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@ Required keys:
 - `EXPO_PUBLIC_APP_SUBTITLE` (optional)
 - `EXPO_PUBLIC_SENDER_EMAIL` (optional, enables Gmail shortcut)
 - `EXPO_PUBLIC_REQUIRED_PIN_LENGTH` (optional, defaults to `4`)
+- `EXPO_PUBLIC_GUEST_PIN_MODE` (optional, `generated` or `custom_until_scheduled`)
 - `EXPO_PUBLIC_APNS_ENVIRONMENT` (optional iOS push endpoint override: `sandbox` or `production`)
 - `EXPO_IOS_BUNDLE_IDENTIFIER` (required for signed iOS builds that receive APNs)
 - `EXPO_ANDROID_PACKAGE` (optional Android application ID override)
@@ -93,6 +94,7 @@ Optional GitHub Actions variables or secrets:
 - `EXPO_PUBLIC_APP_SUBTITLE`
 - `EXPO_PUBLIC_SENDER_EMAIL`
 - `EXPO_PUBLIC_REQUIRED_PIN_LENGTH`
+- `EXPO_PUBLIC_GUEST_PIN_MODE`
 - `EXPO_PUBLIC_APNS_ENVIRONMENT`
 - `EXPO_IOS_BUNDLE_IDENTIFIER`
 - `EXPO_ANDROID_PACKAGE`

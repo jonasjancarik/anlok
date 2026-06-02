@@ -91,6 +91,61 @@ class NotificationRegressionTests(unittest.TestCase):
         )
         deactivate_device.assert_called_once_with("fcm-token")
 
+    def test_shared_pin_event_notifies_all_matched_users(self):
+        event = {
+            "method": "pin",
+            "outcome": "granted",
+            "user_id": 42,
+            "credential_label": "Front door PIN",
+            "metadata": {
+                "shared_pin_match": True,
+                "matched_user_ids": [42, 43],
+            },
+        }
+        devices_by_user = {
+            42: [
+                {
+                    "id": 1,
+                    "push_token": "user-42-token",
+                    "provider": "apns",
+                    "environment": "sandbox",
+                }
+            ],
+            43: [
+                {
+                    "id": 2,
+                    "push_token": "user-43-token",
+                    "provider": "fcm",
+                    "environment": None,
+                }
+            ],
+        }
+
+        with patch(
+            "src.notifications.access_event_store.get_access_event_summary",
+            return_value=event,
+        ), patch(
+            "src.notifications.access_event_store.get_active_notification_devices",
+            side_effect=lambda user_id: devices_by_user[user_id],
+        ) as get_devices, patch(
+            "src.notifications.access_event_store.create_notification_delivery",
+            side_effect=[101, 102],
+        ) as create_delivery, patch(
+            "src.notifications._send_device_notification",
+            return_value=ProviderResult(status="sent"),
+        ), patch(
+            "src.notifications.access_event_store.update_notification_delivery"
+        ):
+            send_access_event_notifications(55)
+
+        get_devices.assert_has_calls([call(42), call(43)])
+        create_delivery.assert_has_calls(
+            [
+                call(access_event_id=55, user_id=42, notification_device_id=1),
+                call(access_event_id=55, user_id=43, notification_device_id=2),
+            ]
+        )
+
     def test_test_notification_reports_provider_results(self):
         devices = [
             {

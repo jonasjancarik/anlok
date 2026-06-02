@@ -56,6 +56,9 @@ const timePresets = [
   { label: 'All Day', start: '00:00', end: '23:59' },
 ];
 
+const scheduledPinWarning =
+  'Scheduled access needs a unique PIN so time limits can be enforced. PINs for this user will be deleted and new PINs will be automatically generated.';
+
 const FieldColumn = ({ children }: { children: React.ReactNode }) => (
   <View style={{ flex: 1, minWidth: 120, gap: 6 }}>{children}</View>
 );
@@ -77,6 +80,7 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
   const [oneStartTime, setOneStartTime] = useState('09:00');
   const [oneEndTime, setOneEndTime] = useState('17:00');
   const [endDateManuallySet, setEndDateManuallySet] = useState(false);
+  const hasSchedules = recurring.length > 0 || oneTime.length > 0;
 
   const loadSchedules = useCallback(async () => {
     setLoading(true);
@@ -114,7 +118,7 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
     }
 
     try {
-      await api.post(
+      const response = await api.post<{ pin?: string }>(
         `/guests/${user.id}/recurring-schedules`,
         {
           day_of_week: day,
@@ -123,7 +127,11 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
         },
         { headers: authHeaders(token) }
       );
-      setSuccess('Recurring schedule added.');
+      setSuccess(
+        response.data.pin
+          ? `Recurring schedule added. New PIN: ${response.data.pin}`
+          : 'Recurring schedule added.'
+      );
       setDayOfWeek('0');
       setRecurringStartTime('09:00');
       setRecurringEndTime('17:00');
@@ -165,7 +173,7 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
     }
 
     try {
-      await api.post(
+      const response = await api.post<{ pin?: string }>(
         `/guests/${user.id}/one-time-accesses`,
         {
           start_date: oneStartDate,
@@ -175,7 +183,11 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
         },
         { headers: authHeaders(token) }
       );
-      setSuccess('One-time access added.');
+      setSuccess(
+        response.data.pin
+          ? `One-time access added. New PIN: ${response.data.pin}`
+          : 'One-time access added.'
+      );
       setOneStartDate('');
       setOneEndDate('');
       setOneStartTime('09:00');
@@ -267,6 +279,7 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
 
       {error ? <Banner type="error" text={error} /> : null}
       {success ? <Banner type="success" text={success} /> : null}
+      {!hasSchedules ? <Banner type="info" text={scheduledPinWarning} /> : null}
 
       {tab === 'recurring' ? (
         <>

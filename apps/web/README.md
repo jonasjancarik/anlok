@@ -7,7 +7,13 @@ Next.js web client for Anlok.
 The Expo / React Native client now lives in `../app`.
 
 - Setup + run instructions: `../app/README.md`
-- Env template: `../app/.env.example`
+- Env template: `.env.example`
+
+Relevant public env keys:
+
+- `NEXT_PUBLIC_API_URL`
+- `NEXT_PUBLIC_REQUIRED_PIN_LENGTH`
+- `NEXT_PUBLIC_GUEST_PIN_MODE` (`generated` or `custom_until_scheduled`)
 
 ## Getting Started
 

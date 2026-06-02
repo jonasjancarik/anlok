@@ -37,16 +37,34 @@ def _event_body(event):
     method = event["method"].replace("_", " ")
     outcome = event["outcome"]
     reason = event.get("reason")
+    metadata = event.get("metadata") or {}
 
     if event["method"] == "remote_unlock":
         return "The door was unlocked from the app."
 
-    subject = credential_label or f"Your {method}"
+    subject = (
+        "A shared PIN"
+        if metadata.get("shared_pin_match")
+        else credential_label or f"Your {method}"
+    )
     if outcome == "granted":
         return f"{subject} unlocked the door."
     if reason:
         return f"{subject} was used but access was denied: {reason.replace('_', ' ')}."
     return f"{subject} was used but access was denied."
+
+
+def _notification_user_ids(event):
+    user_ids = []
+    if event.get("user_id"):
+        user_ids.append(event["user_id"])
+
+    metadata = event.get("metadata") or {}
+    for user_id in metadata.get("matched_user_ids", []):
+        if user_id:
+            user_ids.append(user_id)
+
+    return list(dict.fromkeys(user_ids))
 
 
 def _notification_data(event, access_event_id):
@@ -318,36 +336,38 @@ def send_test_notification(user_id):
 
 def send_access_event_notifications(access_event_id):
     event = access_event_store.get_access_event_summary(access_event_id)
-    if not event or not event.get("user_id"):
+    if not event:
         return
 
-    devices = access_event_store.get_active_notification_devices(event["user_id"])
-    if not devices:
+    user_ids = _notification_user_ids(event)
+    if not user_ids:
         return
 
     title = _event_title(event)
     body = _event_body(event)
     data = _notification_data(event, access_event_id)
 
-    for device in devices:
-        delivery_id = access_event_store.create_notification_delivery(
-            access_event_id=access_event_id,
-            user_id=event["user_id"],
-            notification_device_id=device["id"],
-        )
-        result = _send_device_notification(device, title, body, data)
-        if result.status != "sent":
-            logger.error(
-                "Failed to send %s notification for access event %s: %s",
-                device.get("provider"),
-                access_event_id,
+    for user_id in user_ids:
+        devices = access_event_store.get_active_notification_devices(user_id)
+        for device in devices:
+            delivery_id = access_event_store.create_notification_delivery(
+                access_event_id=access_event_id,
+                user_id=user_id,
+                notification_device_id=device["id"],
+            )
+            result = _send_device_notification(device, title, body, data)
+            if result.status != "sent":
+                logger.error(
+                    "Failed to send %s notification for access event %s: %s",
+                    device.get("provider"),
+                    access_event_id,
+                    result.error,
+                )
+            access_event_store.update_notification_delivery(
+                delivery_id,
+                result.status,
+                result.provider_message_id,
                 result.error,
             )
-        access_event_store.update_notification_delivery(
-            delivery_id,
-            result.status,
-            result.provider_message_id,
-            result.error,
-        )
-        if result.deactivate_device:
-            access_event_store.deactivate_notification_device(device["push_token"])
+            if result.deactivate_device:
+                access_event_store.deactivate_notification_device(device["push_token"])

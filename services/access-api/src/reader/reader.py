@@ -2,7 +2,12 @@ import os
 import src.utils as utils
 from dotenv import load_dotenv
 from dataclasses import dataclass, field
-from src.db import get_all_pins, get_all_rfids, is_user_allowed_access
+from src.db import (
+    get_all_pins,
+    get_all_rfids,
+    is_user_allowed_access,
+    user_has_schedules,
+)
 from src.reader.input_handler import read_input
 from src.logger import logger
 from src.door_manager import door_manager
@@ -24,6 +29,7 @@ class AccessDecision:
     method: str
     outcome: str
     user_id: int | None = None
+    user_name: str | None = None
     credential_id: int | None = None
     credential_label: str | None = None
     apartment_id: int | None = None
@@ -42,6 +48,7 @@ def _decision_for_user_credential(method, credential, allowed, reason=None):
         method=method,
         outcome="granted" if allowed else "denied",
         user_id=user.id,
+        user_name=user.name,
         credential_id=credential.id,
         credential_label=credential.label,
         apartment_id=user.apartment_id,
@@ -50,39 +57,117 @@ def _decision_for_user_credential(method, credential, allowed, reason=None):
     )
 
 
-def check_input(input_value):
-    # Check if it's a PIN
-    all_pins = get_all_pins()
-    for pin in all_pins:
-        if utils.hash_secret(input_value, pin.salt) == pin.hashed_pin:
-            # First, check if the user is active
-            if not pin.user.is_active:
-                logger.warning(
-                    f"PIN used by inactive user {pin.user.id} ({pin.user.name}). Access denied."
-                )
-                return _decision_for_user_credential(
-                    "pin", pin, False, "inactive_user"
-                )
+def _decision_for_pin(pin):
+    if not pin.user.is_active:
+        logger.warning(
+            f"PIN used by inactive user {pin.user.id} ({pin.user.name}). Access denied."
+        )
+        return _decision_for_user_credential("pin", pin, False, "inactive_user")
 
-            # If it's a guest user, check their access schedule
-            if pin.user.role == "guest":
-                if is_user_allowed_access(pin.user.id):
-                    logger.info(
-                        f"Valid PIN used by guest {pin.user.id} ({pin.user.name}) with valid access schedule"
-                    )
-                    return _decision_for_user_credential("pin", pin, True)
-                else:
-                    logger.warning(
-                        f"Valid PIN used by guest {pin.user.id} ({pin.user.name}) outside of allowed schedule"
-                    )
-                    return _decision_for_user_credential(
-                        "pin", pin, False, "outside_allowed_schedule"
-                    )
-            # For non-guest active users, allow access
+    if pin.user.role == "guest":
+        if is_user_allowed_access(pin.user.id):
             logger.info(
-                f"Valid PIN used by active user {pin.user.id} ({pin.user.name}) - PID: {os.getpid()}"
+                f"Valid PIN used by guest {pin.user.id} ({pin.user.name}) with valid access schedule"
             )
             return _decision_for_user_credential("pin", pin, True)
+
+        logger.warning(
+            f"Valid PIN used by guest {pin.user.id} ({pin.user.name}) outside of allowed schedule"
+        )
+        return _decision_for_user_credential(
+            "pin", pin, False, "outside_allowed_schedule"
+        )
+
+    logger.info(
+        f"Valid PIN used by active user {pin.user.id} ({pin.user.name}) - PID: {os.getpid()}"
+    )
+    return _decision_for_user_credential("pin", pin, True)
+
+
+def _shared_pin_metadata(decisions):
+    matched_credentials = [
+        {
+            "credential_id": decision.credential_id,
+            "credential_label": decision.credential_label,
+            "user_id": decision.user_id,
+            "user_name": decision.user_name,
+            "apartment_id": decision.apartment_id,
+            "outcome": decision.outcome,
+            "reason": decision.reason,
+        }
+        for decision in decisions
+    ]
+    matched_user_ids = sorted(
+        {decision.user_id for decision in decisions if decision.user_id is not None}
+    )
+    return {
+        "shared_pin_match": True,
+        "matched_credentials": matched_credentials,
+        "matched_user_ids": matched_user_ids,
+    }
+
+
+def _decision_for_shared_pin(matching_pins):
+    sorted_pins = sorted(matching_pins, key=lambda pin: pin.id)
+    decisions = [_decision_for_pin(pin) for pin in sorted_pins]
+    metadata = _shared_pin_metadata(decisions)
+
+    if any(user_has_schedules(decision.user_id) for decision in decisions):
+        primary = next(
+            (
+                decision
+                for decision in decisions
+                if user_has_schedules(decision.user_id)
+            ),
+            decisions[0],
+        )
+        logger.warning(
+            "Shared PIN matched scheduled access credentials. Access denied."
+        )
+        return AccessDecision(
+            allowed=False,
+            method="pin",
+            outcome="denied",
+            user_id=primary.user_id,
+            user_name=primary.user_name,
+            credential_id=primary.credential_id,
+            credential_label=primary.credential_label,
+            apartment_id=primary.apartment_id,
+            reason="ambiguous_scheduled_pin",
+            metadata=metadata,
+        )
+
+    primary = next(
+        (decision for decision in decisions if decision.allowed), decisions[0]
+    )
+    metadata["primary_user_id"] = primary.user_id
+    metadata["primary_credential_id"] = primary.credential_id
+
+    return AccessDecision(
+        allowed=primary.allowed,
+        method="pin",
+        outcome=primary.outcome,
+        user_id=primary.user_id,
+        user_name=primary.user_name,
+        credential_id=primary.credential_id,
+        credential_label=primary.credential_label,
+        apartment_id=primary.apartment_id,
+        reason=primary.reason,
+        metadata=metadata,
+    )
+
+
+def check_input(input_value):
+    # Check if it's a PIN
+    matching_pins = [
+        pin
+        for pin in get_all_pins()
+        if utils.hash_secret(input_value, pin.salt) == pin.hashed_pin
+    ]
+    if len(matching_pins) == 1:
+        return _decision_for_pin(matching_pins[0])
+    if len(matching_pins) > 1:
+        return _decision_for_shared_pin(matching_pins)
 
     # If not a PIN, check if it's an RFID
     all_rfids = get_all_rfids()

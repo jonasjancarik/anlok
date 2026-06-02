@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from src import utils
+from src.api import pin_policy
 from src.api.routes import auth as auth_routes
 from src.reader import input_handler
 
@@ -46,6 +47,16 @@ class ConfigRegressionTests(unittest.TestCase):
                 ),
                 "LOW",
             )
+
+    def test_pin_uniqueness_mode_rejects_invalid_values(self):
+        with patch.dict(os.environ, {"PIN_UNIQUENESS_MODE": "sometimes"}):
+            with self.assertRaisesRegex(ValueError, "PIN_UNIQUENESS_MODE"):
+                pin_policy.get_pin_uniqueness_mode()
+
+    def test_guest_pin_mode_rejects_invalid_values(self):
+        with patch.dict(os.environ, {"GUEST_PIN_MODE": "sometimes"}):
+            with self.assertRaisesRegex(ValueError, "GUEST_PIN_MODE"):
+                pin_policy.get_guest_pin_mode()
 
     def test_login_link_uses_web_app_url_with_email_and_code(self):
         with patch.dict(

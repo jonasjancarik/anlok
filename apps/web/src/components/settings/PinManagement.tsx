@@ -15,6 +15,8 @@ const commonPins = [
 ];
 
 const REQUIRED_PIN_LENGTH = parseInt(process.env.NEXT_PUBLIC_REQUIRED_PIN_LENGTH || '4');
+const allowUnscheduledGuestCustomPins =
+    process.env.NEXT_PUBLIC_GUEST_PIN_MODE?.trim().toLowerCase() === 'custom_until_scheduled';
 
 const unsafePinPatterns = [
     { regex: new RegExp(`^(${commonPins.join('|')})$`), reason: 'commonly used PIN' },
@@ -34,6 +36,9 @@ const getUnsafePinReason = (pin: string): string => {
     return matchedPattern ? matchedPattern.reason : 'unknown reason';
 };
 
+const sharedPinCopy =
+    'A PIN is a door code, not a private password. If two people use the same PIN, they both may get notifications when the PIN is used.';
+
 const PinManagement: React.FC<PinManagementProps> = ({ user }) => {
     const { token } = useAuth();
     const [pins, setPins] = useState([]);
@@ -45,6 +50,15 @@ const PinManagement: React.FC<PinManagementProps> = ({ user }) => {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [selectedPin, setSelectedPin] = useState<PIN | null>(null);
+    const [guestHasSchedules, setGuestHasSchedules] = useState(false);
+    const needsPinInput =
+        user.role !== 'guest' ||
+        (allowUnscheduledGuestCustomPins && !guestHasSchedules);
+    const guestPinCopy = guestHasSchedules
+        ? 'Scheduled guest PINs are generated automatically so scheduled access times work correctly.'
+        : allowUnscheduledGuestCustomPins
+            ? 'Guests without scheduled access may choose a PIN. If scheduled access is added later, existing PINs will be replaced automatically.'
+            : 'Guest PINs are generated automatically so scheduled access times work correctly.';
 
     const fetchPins = useCallback(async () => {
         try {
@@ -61,6 +75,29 @@ const PinManagement: React.FC<PinManagementProps> = ({ user }) => {
     useEffect(() => {
         fetchPins();
     }, [fetchPins]);
+
+    useEffect(() => {
+        const fetchGuestScheduleState = async () => {
+            if (user.role !== 'guest' || !allowUnscheduledGuestCustomPins) {
+                setGuestHasSchedules(false);
+                return;
+            }
+
+            try {
+                const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/guests/${user.id}/schedules`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                setGuestHasSchedules(
+                    (response.data.recurring_schedules?.length ?? 0) > 0 ||
+                        (response.data.one_time_access?.length ?? 0) > 0
+                );
+            } catch {
+                setGuestHasSchedules(true);
+            }
+        };
+
+        fetchGuestScheduleState();
+    }, [user.id, user.role, token]);
 
     const validatePin = (pin: string) => {
         if (pin.length !== REQUIRED_PIN_LENGTH) {
@@ -83,21 +120,21 @@ const PinManagement: React.FC<PinManagementProps> = ({ user }) => {
 
     const handleAddPin = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (user.role !== 'guest' && validatePin(newPin)) {
+        if (needsPinInput && validatePin(newPin)) {
             setPinFeedback(validatePin(newPin));
             return;
         }
 
         try {
             const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/pins`, {
-                ...(user.role === 'guest' ? {} : { pin: newPin }),
+                ...(needsPinInput ? { pin: newPin } : {}),
                 label: newPinLabel,
                 user_id: user.id,
             }, {
                 headers: { Authorization: `Bearer ${token}` },
             });
 
-            const successMessage = user.role === 'guest'
+            const successMessage = !needsPinInput
                 ? `PIN generated successfully: ${response.data.pin}`
                 : 'PIN added successfully';
 
@@ -136,6 +173,7 @@ const PinManagement: React.FC<PinManagementProps> = ({ user }) => {
             {/* Toast Notifications */}
             {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
             {success && <Alert variant="success" onClose={() => setSuccess('')} dismissible>{success}</Alert>}
+            <Alert variant="info">{sharedPinCopy}</Alert>
 
             {/* Header Section */}
             <div className="d-flex justify-content-end align-items-center mb-4">
@@ -208,10 +246,10 @@ const PinManagement: React.FC<PinManagementProps> = ({ user }) => {
                                 type="text"
                                 value={newPin}
                                 onChange={handlePinChange}
-                                placeholder={user.role === 'guest' ? 'PIN will be generated automatically' : `Enter ${REQUIRED_PIN_LENGTH}-digit PIN`}
+                                placeholder={needsPinInput ? `Enter ${REQUIRED_PIN_LENGTH}-digit PIN` : 'PIN will be generated automatically'}
                                 isInvalid={!!pinFeedback}
-                                isValid={newPin.length > 0 && !pinFeedback}
-                                disabled={user.role === 'guest'}
+                                isValid={needsPinInput && newPin.length > 0 && !pinFeedback}
+                                disabled={!needsPinInput}
                             />
                             <Form.Control.Feedback type="invalid">
                                 {pinFeedback}
@@ -219,6 +257,11 @@ const PinManagement: React.FC<PinManagementProps> = ({ user }) => {
                             <Form.Control.Feedback type="valid">
                                 PIN is valid
                             </Form.Control.Feedback>
+                            <Form.Text className="text-muted">
+                                {user.role === 'guest'
+                                    ? guestPinCopy
+                                    : sharedPinCopy}
+                            </Form.Text>
                         </Form.Group>
                         <Form.Group className="mb-3">
                             <Form.Label>Label</Form.Label>
@@ -238,7 +281,7 @@ const PinManagement: React.FC<PinManagementProps> = ({ user }) => {
                     <Button 
                         variant="primary" 
                         onClick={handleAddPin}
-                        disabled={user.role !== 'guest' && (!newPin || !!pinFeedback)}
+                        disabled={needsPinInput && (!newPin || !!pinFeedback)}
                     >
                         Add PIN
                     </Button>
