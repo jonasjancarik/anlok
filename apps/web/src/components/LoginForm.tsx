@@ -5,7 +5,13 @@ import axios from 'axios';
 import { AxiosError } from 'axios';
 import { User } from '@/types/types';
 
-const LoginForm = ({ onLogin }: { onLogin: (token: string, user: User) => void }) => {
+const LoginForm = ({
+    onLogin,
+    returnTo,
+}: {
+    onLogin: (token: string, user: User) => void;
+    returnTo?: string;
+}) => {
     const [email, setEmail] = useState('');
     const [loginCode, setLoginCode] = useState('');
     const [emailSent, setEmailSent] = useState(false);
@@ -75,7 +81,10 @@ const LoginForm = ({ onLogin }: { onLogin: (token: string, user: User) => void }
     const handleSendLink = async () => {
         setLoading(true);
         try {
-            const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/auth/magic-links`, { email });
+            const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/auth/magic-links`, {
+                email,
+                return_to: returnTo,
+            });
             if (response.status === 202) {
                 setEmailStatus('A login code has been sent to your email.');
                 setEmailSent(true);

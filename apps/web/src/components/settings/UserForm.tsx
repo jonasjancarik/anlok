@@ -15,7 +15,7 @@ const UserForm: React.FC<UserFormProps> = ({ targetUser, onSuccess }) => {
     const [name, setName] = useState(targetUser?.name || '');
     const [email, setEmail] = useState(targetUser?.email || '');
     const [apartmentNumber, setApartmentNumber] = useState(targetUser?.apartment?.number || user?.apartment?.number || '');
-    type UserRole = 'admin' | 'apartment_admin' | 'guest';
+    type UserRole = 'admin' | 'apartment_admin' | 'user' | 'guest';
     const [role, setRole] = useState<UserRole>(targetUser?.role || 'guest');
     const [status, setStatus] = useState('');
     const [apartments, setApartments] = useState<Apartment[]>([]);

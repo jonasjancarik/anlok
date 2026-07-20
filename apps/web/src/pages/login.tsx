@@ -8,21 +8,25 @@ import { User } from '@/types/types';
 const Login = () => {
     const router = useRouter();
     const { user, login } = useAuth();
+    const requestedReturnTo = typeof router.query.return_to === 'string' ? router.query.return_to : '';
+    const returnTo = requestedReturnTo.startsWith('/') && !requestedReturnTo.startsWith('//')
+        ? requestedReturnTo
+        : '/';
 
     useEffect(() => {
         if (user) {
-            router.push('/');
+            router.push(returnTo);
         }
-    }, [user, router]);
+    }, [user, router, returnTo]);
 
     const handleLogin = (token: string, user: User) => {
         login(token, user);
-        router.push('/');
+        router.push(returnTo);
     };
 
     return (
         <Container className="d-flex flex-column justify-content-center align-items-center vh-100">
-            <LoginForm onLogin={handleLogin} />
+            <LoginForm onLogin={handleLogin} returnTo={returnTo} />
         </Container>
     );
 };

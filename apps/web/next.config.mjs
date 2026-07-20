@@ -33,6 +33,7 @@ const nextConfig = withPWA({
         NEXT_PUBLIC_WEB_APP_PORT: process.env.NEXT_PUBLIC_WEB_APP_PORT,
         NEXT_SENDER_EMAIL: process.env.NEXT_SENDER_EMAIL,
         NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+        NEXT_PUBLIC_MCP_URL: process.env.NEXT_PUBLIC_MCP_URL,
     },
 });
 

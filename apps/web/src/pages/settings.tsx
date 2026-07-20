@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import UserProfile from '../components/settings/UserProfile';
 import UserManagement from '../components/settings/UserManagement';
 import ApartmentManagement from '../components/settings/ApartmentManagement';
+import McpConnection from '../components/settings/McpConnection';
 
 const Settings = () => {
     const { user } = useAuth();
@@ -21,6 +22,9 @@ const Settings = () => {
                     >
                         <Tab eventKey="profile" title="Profile">
                             <UserProfile />
+                        </Tab>
+                        <Tab eventKey="connections" title="Connections">
+                            <McpConnection />
                         </Tab>
                         <Tab eventKey="users" title="Users">
                             <UserManagement isActive={activeTab === 'users'} />
