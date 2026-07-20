@@ -313,6 +313,18 @@ WantedBy=multi-user.target
 
 ## Usage
 
+### Remote MCP server
+
+The API also serves a standards-compliant Streamable HTTP MCP endpoint at `/mcp`
+with browser OAuth 2.1. It uses the existing Anlok roles, permissions, apartment
+scope, and credential rules rather than a separate authorization matrix.
+
+Deployment configuration, client commands, OAuth endpoint routing, tool scope,
+and security behavior are documented in [`../../docs/mcp.md`](../../docs/mcp.md).
+Set `MCP_PUBLIC_URL`, `OAUTH_ISSUER_URL`, and `WEB_APP_URL` to their exact public
+URLs. Production startup rejects non-HTTPS values; documented localhost HTTP is
+allowed for development.
+
 ### First-time setup
 
 Set environment variables to configure the app. First copy the example file with `cp .env.example .env` and then edit as needed.

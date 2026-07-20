@@ -12,6 +12,7 @@ The Expo / React Native client now lives in `../app`.
 Relevant public env keys:
 
 - `NEXT_PUBLIC_API_URL`
+- `NEXT_PUBLIC_MCP_URL` (the public `/mcp` address shown under Settings → Connections)
 - `NEXT_PUBLIC_REQUIRED_PIN_LENGTH`
 - `NEXT_PUBLIC_GUEST_PIN_MODE` (`generated` or `custom_until_scheduled`)
 

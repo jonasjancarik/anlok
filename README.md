@@ -15,3 +15,10 @@ Each project keeps its own runtime, dependencies, and lockfiles:
 - `apps/web`: `npm install`, `npm run dev`
 - `apps/app`: `npm install`, follow `apps/app/README.md`
 - `services/access-api`: create a virtualenv, install `requirements.txt`, then run from `services/access-api`
+
+## Remote MCP
+
+Anlok exposes one role-aware Streamable HTTP MCP endpoint with browser OAuth for
+residents, apartment administrators, guests, and building administrators. See
+[`docs/mcp.md`](docs/mcp.md) for client setup, security behavior, and deployment
+requirements.
