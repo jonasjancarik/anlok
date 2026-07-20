@@ -20,9 +20,13 @@ from src.api.routes.health import router as health_router
 from src.api.routes.logs import router as logs_router
 from src.api.routes.access_events import router as access_events_router
 from src.api.routes.notification_devices import router as notification_devices_router
+from src.api.routes.oauth import router as oauth_router
 from src.api.exceptions import configure_exception_handlers
 from src.api.dependencies import get_current_user
 from src.db import init_db
+from src.mcp_server import create_mcp_asgi_app, mcp
+from src.oauth_config import oauth_settings
+from src.oauth_service import cleanup_expired_oauth_data
 
 load_dotenv()
 
@@ -73,6 +77,7 @@ app_logger = logging.getLogger("api")
 
 # Track if lifespan has been called to prevent duplicate startup
 _lifespan_started = False
+mcp_asgi_app = create_mcp_asgi_app()
 
 
 @asynccontextmanager
@@ -81,9 +86,11 @@ async def lifespan(app: FastAPI):
     if not _lifespan_started:
         _lifespan_started = True
         init_db()
+        cleanup_expired_oauth_data()
         app_logger.info("Application startup: Starting RFID reader...")
         start_reader()
-    yield
+    async with mcp.session_manager.run():
+        yield
     app_logger.info("Application shutdown: Stopping RFID reader...")
     await stop_reader()
 
@@ -122,9 +129,26 @@ app.include_router(authenticated_router)
 
 # Include the auth router separately (it contains the /magic-links and /tokens endpoints)
 app.include_router(auth_router)
+app.include_router(oauth_router)
+
+
+@app.middleware("http")
+async def add_mcp_auth_scope(request, call_next):
+    response = await call_next(request)
+    if request.url.path == "/mcp" and response.status_code in {401, 403}:
+        challenge = response.headers.get("WWW-Authenticate")
+        if challenge and "scope=" not in challenge:
+            response.headers["WWW-Authenticate"] = (
+                f'{challenge}, scope="{oauth_settings.scope}"'
+            )
+    return response
+
 
 # Configure exception handlers
 configure_exception_handlers(app)
+
+# Keep this last: it serves /mcp and RFC 9728 metadata for otherwise unmatched paths.
+app.mount("/", mcp_asgi_app)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))

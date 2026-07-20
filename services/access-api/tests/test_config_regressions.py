@@ -10,6 +10,40 @@ from src.reader import input_handler
 
 
 class ConfigRegressionTests(unittest.TestCase):
+    def test_oauth_production_urls_require_https(self):
+        from src.oauth_config import load_oauth_settings
+
+        with patch.dict(
+            "os.environ",
+            {
+                "ENVIRONMENT": "production",
+                "MCP_PUBLIC_URL": "http://localhost:8000/mcp",
+                "OAUTH_ISSUER_URL": "http://localhost:8000",
+                "WEB_APP_URL": "http://localhost:3000",
+            },
+        ):
+            with self.assertRaises(RuntimeError) as raised:
+                load_oauth_settings()
+
+        self.assertIn("HTTPS", str(raised.exception))
+
+    def test_oauth_rejects_insecure_non_local_public_url(self):
+        from src.oauth_config import load_oauth_settings
+
+        with patch.dict(
+            "os.environ",
+            {
+                "ENVIRONMENT": "development",
+                "MCP_PUBLIC_URL": "http://door.example.com/mcp",
+                "OAUTH_ISSUER_URL": "https://door.example.com",
+                "WEB_APP_URL": "https://access.example.com",
+            },
+        ):
+            with self.assertRaises(RuntimeError) as raised:
+                load_oauth_settings()
+
+        self.assertIn("HTTPS", str(raised.exception))
+
     def tearDown(self):
         importlib.reload(input_handler)
 
@@ -66,6 +100,17 @@ class ConfigRegressionTests(unittest.TestCase):
                 auth_routes.build_login_link("AB CD", "jonas+test@example.com"),
                 "https://anlok.example.com/login?login_code=AB+CD&email=jonas%2Btest%40example.com",
             )
+
+    def test_login_link_preserves_only_safe_internal_return_path(self):
+        valid_link = auth_routes.build_login_link(
+            "CODE123", "user@example.com", "/oauth/authorize?request_id=request"
+        )
+        unsafe_link = auth_routes.build_login_link(
+            "CODE123", "user@example.com", "//attacker.example/steal"
+        )
+
+        self.assertIn("return_to=%2Foauth%2Fauthorize", valid_link)
+        self.assertNotIn("return_to", unsafe_link)
 
 
 if __name__ == "__main__":

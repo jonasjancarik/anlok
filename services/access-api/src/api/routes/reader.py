@@ -22,7 +22,7 @@ async def start_reader_endpoint(current_user: User = Depends(get_current_user)):
 async def stop_reader_endpoint(current_user: User = Depends(get_current_user)):
     if get_reader_status() == "stopped":
         raise APIException(status_code=400, detail="Reader is not running")
-    stop_reader()
+    await stop_reader()
     return {"message": "Reader stopped successfully"}
 
 

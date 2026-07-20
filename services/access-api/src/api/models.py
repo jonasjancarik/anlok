@@ -8,6 +8,7 @@ from datetime import date, time
 
 class LoginRequest(BaseModel):
     email: EmailStr
+    return_to: Optional[str] = None
 
 
 class LoginCodeAttempt(BaseModel):
@@ -68,7 +69,7 @@ class ApartmentResponse(BaseModel):
 
 
 class ApartmentUpdate(BaseModel):
-    number: Optional[str]
+    number: Optional[str] = None
     description: Optional[str] = None
 
 

@@ -73,7 +73,7 @@ async def read_rfid(timeout: int, user: User = Depends(get_current_user)):
         # stop reader if it's running
         if get_reader_status() == "running":
             logger.info("Stopping reader before reading RFID")
-            stop_reader()
+            await stop_reader()
         rfid_uuid = await read_single_input(timeout=min(timeout, 30))
         if not rfid_uuid:
             logger.warning("No RFID scanned within timeout period")

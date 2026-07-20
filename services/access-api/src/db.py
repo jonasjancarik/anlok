@@ -181,7 +181,9 @@ class AccessEvent(Base):
     actor_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     credential_id = Column(Integer, nullable=True)
     credential_label = Column(String, nullable=True)
-    apartment_id = Column(Integer, ForeignKey("apartments.id"), nullable=True, index=True)
+    apartment_id = Column(
+        Integer, ForeignKey("apartments.id"), nullable=True, index=True
+    )
     reason = Column(String, nullable=True)
     source = Column(String, nullable=True)
     metadata_json = Column(Text, nullable=True)
@@ -297,6 +299,8 @@ def migrate_notification_schema():
 
 
 def init_db():
+    import src.oauth_models  # noqa: F401 - registers OAuth tables on Base.metadata
+
     Base.metadata.create_all(bind=engine)
     migrate_notification_schema()
 

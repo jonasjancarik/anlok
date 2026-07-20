@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 from fastapi import HTTPException
 
 import src.utils as utils
+from src import access_control
 from src.api.exceptions import APIException
 from src.api.models import ApartmentResponse, PINCreate, RFIDCreate, User, UserUpdate
 from src.api.permissions import Permission, require_permission
@@ -94,7 +95,9 @@ class RBACRegressionTests(unittest.TestCase):
 
         with patch("src.api.routes.users.db.get_user", return_value=target_user):
             with patch("src.api.routes.users.db.get_user_pins", return_value=[pin]):
-                with patch("src.api.routes.users.db.get_user_rfids", return_value=[rfid]):
+                with patch(
+                    "src.api.routes.users.db.get_user_rfids", return_value=[rfid]
+                ):
                     pin_result = users_routes.list_user_pins(
                         current_user=current_user, user_id=2
                     )
@@ -222,7 +225,9 @@ class RBACRegressionTests(unittest.TestCase):
         saved_schedule = SimpleNamespace(id=55)
 
         with patch("src.api.routes.guests.db.get_user", return_value=guest_user):
-            with patch("src.api.routes.guests.db.user_has_schedules", return_value=False):
+            with patch(
+                "src.api.routes.guests.db.user_has_schedules", return_value=False
+            ):
                 with patch(
                     "src.api.routes.guests.pin_policy.reset_user_pins_for_scheduled_access",
                     return_value=(saved_pin, "2468"),
@@ -251,7 +256,9 @@ class RBACRegressionTests(unittest.TestCase):
         saved_schedule = SimpleNamespace(id=55)
 
         with patch("src.api.routes.guests.db.get_user", return_value=guest_user):
-            with patch("src.api.routes.guests.db.user_has_schedules", return_value=True):
+            with patch(
+                "src.api.routes.guests.db.user_has_schedules", return_value=True
+            ):
                 with patch(
                     "src.api.routes.guests.pin_policy.reset_user_pins_for_scheduled_access"
                 ) as reset_pins:
@@ -357,7 +364,6 @@ class RBACRegressionTests(unittest.TestCase):
         self.assertEqual(exc.exception.status_code, 400)
         self.assertEqual(exc.exception.detail, pin_policy.GUEST_CUSTOM_PIN_DETAIL)
 
-
     def test_guest_can_create_own_rfid(self):
         current_user = SimpleNamespace(
             id=10,
@@ -392,9 +398,9 @@ class RBACRegressionTests(unittest.TestCase):
         )
 
         with patch(
-            "src.api.routes.doors.record_access_event"
+            "src.access_control.record_access_event"
         ) as record_access_event, patch.object(
-            doors_routes.door_manager,
+            access_control.door_manager,
             "unlock",
             new=AsyncMock(return_value={"message": "Door unlock initiated"}),
         ):
@@ -419,9 +425,9 @@ class RBACRegressionTests(unittest.TestCase):
         )
 
         with patch(
-            "src.api.routes.doors.record_access_event"
+            "src.access_control.record_access_event"
         ) as record_access_event, patch.object(
-            doors_routes.door_manager,
+            access_control.door_manager,
             "unlock",
             new=AsyncMock(),
         ) as unlock:

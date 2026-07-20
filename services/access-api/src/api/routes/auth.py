@@ -20,21 +20,41 @@ import time as time_module
 from secrets import token_urlsafe
 import random
 from html import escape
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlencode, urljoin, urlparse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
-def build_login_link(login_code: str, email: str) -> str:
+def safe_web_return_path(return_to: str | None) -> str | None:
+    if not return_to or len(return_to) > 2048:
+        return None
+    parsed = urlparse(return_to)
+    if (
+        parsed.scheme
+        or parsed.netloc
+        or parsed.fragment
+        or not parsed.path.startswith("/")
+    ):
+        return None
+    if parsed.path.startswith("//"):
+        return None
+    return return_to
+
+
+def build_login_link(login_code: str, email: str, return_to: str | None = None) -> str:
     url_to_use = os.getenv(
         "WEB_APP_URL", f"http://localhost:{os.getenv('WEB_APP_PORT', 8050)}/"
     )
     if not url_to_use.endswith("/"):
         url_to_use += "/"
 
-    query = urlencode({"login_code": login_code, "email": email})
+    query_values = {"login_code": login_code, "email": email}
+    safe_return_to = safe_web_return_path(return_to)
+    if safe_return_to:
+        query_values["return_to"] = safe_return_to
+    query = urlencode(query_values)
     return f"{urljoin(url_to_use, 'login')}?{query}"
 
 
@@ -71,7 +91,7 @@ def send_magic_link(request: LoginRequest):
         raise APIException(status_code=500, detail="Server configuration error")
 
     subject = "Your Login Code"
-    login_link = build_login_link(login_code, email)
+    login_link = build_login_link(login_code, email, request.return_to)
     escaped_code = escape(login_code)
     escaped_link = escape(login_link, quote=True)
     body_html = f"""
