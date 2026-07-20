@@ -54,6 +54,10 @@ entry and authorization-server `issuer` are the same exact identifier, including
 the canonical trailing slash. Endpoint URLs are derived from that identifier
 without introducing duplicate slashes.
 
+Dynamic registration metadata must use JSON arrays of strings for fields such as
+`grant_types`. Malformed client metadata is rejected with the OAuth
+`invalid_client_metadata` error instead of being treated as a server failure.
+
 ## Tool safety and scope
 
 The initial tool set includes:

@@ -463,6 +463,45 @@ class OAuthServiceTests(DatabaseTestMixin, unittest.TestCase):
 
 
 class OAuthHttpTests(unittest.TestCase):
+    def test_dynamic_registration_rejects_null_grant_types(self):
+        response = TestClient(api.app).post(
+            "/oauth/register",
+            json={
+                "client_name": "Malformed client",
+                "redirect_uris": [REDIRECT_URI],
+                "grant_types": None,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "invalid_client_metadata")
+
+    def test_dynamic_registration_rejects_numeric_grant_types(self):
+        response = TestClient(api.app).post(
+            "/oauth/register",
+            json={
+                "client_name": "Malformed client",
+                "redirect_uris": [REDIRECT_URI],
+                "grant_types": 42,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "invalid_client_metadata")
+
+    def test_dynamic_registration_rejects_non_string_grant_type_members(self):
+        response = TestClient(api.app).post(
+            "/oauth/register",
+            json={
+                "client_name": "Malformed client",
+                "redirect_uris": [REDIRECT_URI],
+                "grant_types": [42],
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "invalid_client_metadata")
+
     def test_discovery_documents_and_mcp_challenge(self):
         client = TestClient(api.app)
         metadata = client.get("/.well-known/oauth-authorization-server")

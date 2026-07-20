@@ -94,6 +94,12 @@ def register_client(metadata: dict) -> dict:
     grant_types = metadata.get("grant_types", ["authorization_code", "refresh_token"])
     response_types = metadata.get("response_types", ["code"])
     auth_method = metadata.get("token_endpoint_auth_method", "none")
+    if not isinstance(grant_types, list) or any(
+        not isinstance(grant_type, str) for grant_type in grant_types
+    ):
+        raise OAuthError(
+            "invalid_client_metadata", "Grant types must be a list of strings"
+        )
     if set(grant_types) - {"authorization_code", "refresh_token"}:
         raise OAuthError("invalid_client_metadata", "Unsupported grant type")
     if response_types != ["code"] or auth_method != "none":
