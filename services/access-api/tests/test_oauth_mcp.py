@@ -19,6 +19,7 @@ from src.oauth_models import (
     OAuthAccessToken,
     OAuthAuthorizationCode,
     OAuthAuthorizationRequest,
+    OAuthRefreshToken,
 )
 from src.oauth_service import (
     OAuthError,
@@ -398,6 +399,68 @@ class OAuthServiceTests(DatabaseTestMixin, unittest.TestCase):
             session.commit()
         self.assertIsNone(verify_access_token(tokens["access_token"]))
 
+    def test_deleted_user_grants_cannot_attach_to_reused_user_id(self):
+        client, tokens = self.access_token("resident1@example.com")
+        code_client, pending_code, _ = self.authorization_code(
+            "resident1@example.com"
+        )
+        deleted_user_id = self.user_ids["resident1@example.com"]
+
+        with db.get_db() as session:
+            session.query(db.User).filter(db.User.id != deleted_user_id).delete(
+                synchronize_session=False
+            )
+            session.commit()
+
+        self.assertTrue(db.remove_user(deleted_user_id))
+        replacement = db.add_user(
+            {
+                "name": "Replacement Admin",
+                "email": "replacement@example.com",
+                "role": "admin",
+                "apartment_id": 1,
+                "is_active": True,
+            }
+        )
+        self.assertEqual(replacement.id, deleted_user_id)
+
+        self.assertIsNone(verify_access_token(tokens["access_token"]))
+        with self.assertRaises(OAuthError):
+            rotate_refresh_token(
+                refresh_token=tokens["refresh_token"],
+                client_id=client["client_id"],
+                resource=oauth_settings.resource_url,
+                scope=None,
+            )
+        with self.assertRaises(OAuthError):
+            exchange_authorization_code(
+                code=pending_code,
+                client_id=code_client["client_id"],
+                redirect_uri=REDIRECT_URI,
+                code_verifier=VERIFIER,
+                resource=oauth_settings.resource_url,
+            )
+
+        with db.get_db() as session:
+            self.assertEqual(
+                session.query(OAuthAuthorizationCode)
+                .filter_by(user_id=deleted_user_id)
+                .count(),
+                0,
+            )
+            self.assertEqual(
+                session.query(OAuthAccessToken)
+                .filter_by(user_id=deleted_user_id)
+                .count(),
+                0,
+            )
+            self.assertEqual(
+                session.query(OAuthRefreshToken)
+                .filter_by(user_id=deleted_user_id)
+                .count(),
+                0,
+            )
+
 
 class OAuthHttpTests(unittest.TestCase):
     def test_discovery_documents_and_mcp_challenge(self):
@@ -491,6 +554,9 @@ class McpProtocolTests(DatabaseTestMixin, unittest.IsolatedAsyncioTestCase):
                             {"user_id": self.user_ids["resident2@example.com"]},
                         )
                         self.assertTrue(cross_scope.isError)
+                        self.assertIn(
+                            "Cannot access this user", cross_scope.content[0].text
+                        )
                         confirmation = await session.call_tool(
                             "unlock_door", {"confirm": False}
                         )

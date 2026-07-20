@@ -3,15 +3,13 @@ import { useRouter } from 'next/router';
 import LoginForm from '../components/LoginForm';
 import { Container } from 'react-bootstrap';
 import { useAuth } from '@/contexts/AuthContext';
+import { safeInternalPath } from '@/lib/navigation';
 import { User } from '@/types/types';
 
 const Login = () => {
     const router = useRouter();
     const { user, login } = useAuth();
-    const requestedReturnTo = typeof router.query.return_to === 'string' ? router.query.return_to : '';
-    const returnTo = requestedReturnTo.startsWith('/') && !requestedReturnTo.startsWith('//')
-        ? requestedReturnTo
-        : '/';
+    const returnTo = safeInternalPath(router.query.return_to);
 
     useEffect(() => {
         if (user) {

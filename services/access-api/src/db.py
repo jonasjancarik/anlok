@@ -648,9 +648,26 @@ def get_all_pins():
 
 
 def remove_user(user_id):
+    # OAuth grants deliberately have no ORM cascade. Delete them explicitly in the
+    # same transaction so a later SQLite primary-key reuse cannot inherit access.
+    from src.oauth_models import (
+        OAuthAccessToken,
+        OAuthAuthorizationCode,
+        OAuthRefreshToken,
+    )
+
     with get_db() as db:
         user = db.query(User).filter(User.id == user_id).first()
         if user:
+            db.query(OAuthAuthorizationCode).filter_by(user_id=user_id).delete(
+                synchronize_session=False
+            )
+            db.query(OAuthAccessToken).filter_by(user_id=user_id).delete(
+                synchronize_session=False
+            )
+            db.query(OAuthRefreshToken).filter_by(user_id=user_id).delete(
+                synchronize_session=False
+            )
             db.delete(user)
             db.commit()
             logger.info(f"User {user.email} deleted")

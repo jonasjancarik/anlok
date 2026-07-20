@@ -105,12 +105,23 @@ class ConfigRegressionTests(unittest.TestCase):
         valid_link = auth_routes.build_login_link(
             "CODE123", "user@example.com", "/oauth/authorize?request_id=request"
         )
-        unsafe_link = auth_routes.build_login_link(
-            "CODE123", "user@example.com", "//attacker.example/steal"
-        )
 
         self.assertIn("return_to=%2Foauth%2Fauthorize", valid_link)
-        self.assertNotIn("return_to", unsafe_link)
+        for unsafe_path in (
+            "//attacker.example/steal",
+            "///attacker.example/steal",
+            "/\n//attacker.example/steal",
+            "/\r//attacker.example/steal",
+            "/\t//attacker.example/steal",
+            "/\\attacker.example/steal",
+            "/safe#fragment",
+            "https://attacker.example/steal",
+        ):
+            with self.subTest(unsafe_path=repr(unsafe_path)):
+                unsafe_link = auth_routes.build_login_link(
+                    "CODE123", "user@example.com", unsafe_path
+                )
+                self.assertNotIn("return_to", unsafe_link)
 
 
 if __name__ == "__main__":

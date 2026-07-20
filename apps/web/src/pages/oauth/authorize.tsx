@@ -5,6 +5,7 @@ import { Alert, Button, Card, Container, Spinner } from 'react-bootstrap';
 
 import LoginForm from '@/components/LoginForm';
 import { useAuth } from '@/contexts/AuthContext';
+import { safeInternalPath } from '@/lib/navigation';
 import { User } from '@/types/types';
 
 interface AuthorizationRequest {
@@ -21,7 +22,10 @@ const AuthorizeMcp = () => {
     const [submitting, setSubmitting] = useState(false);
     const requestId = typeof router.query.request_id === 'string' ? router.query.request_id : '';
     const returnTo = useMemo(
-        () => requestId ? `/oauth/authorize?request_id=${encodeURIComponent(requestId)}` : '/oauth/authorize',
+        () => safeInternalPath(
+            requestId ? `/oauth/authorize?request_id=${encodeURIComponent(requestId)}` : '/oauth/authorize',
+            '/oauth/authorize',
+        ),
         [requestId],
     );
 

@@ -30,7 +30,14 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 def safe_web_return_path(return_to: str | None) -> str | None:
     if not return_to or len(return_to) > 2048:
         return None
-    parsed = urlparse(return_to)
+    if any(ord(character) < 32 or ord(character) == 127 for character in return_to):
+        return None
+    if return_to.startswith("//") or "\\" in return_to or "#" in return_to:
+        return None
+    try:
+        parsed = urlparse(return_to)
+    except ValueError:
+        return None
     if (
         parsed.scheme
         or parsed.netloc
