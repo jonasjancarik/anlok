@@ -147,8 +147,17 @@ async def add_mcp_auth_scope(request, call_next):
 # Configure exception handlers
 configure_exception_handlers(app)
 
-# Keep this last: it serves /mcp and RFC 9728 metadata for otherwise unmatched paths.
-app.mount("/", mcp_asgi_app)
+# Register only the SDK's concrete MCP and protected-resource metadata paths.
+# Each exact outer route delegates to the complete SDK app so its authentication
+# middleware still runs. A root mount would be a catch-all and prevent FastAPI
+# from issuing normal 307 redirects for existing routes with a trailing slash.
+for mcp_route in mcp_asgi_app.routes:
+    app.add_route(
+        mcp_route.path,
+        mcp_asgi_app,
+        methods=mcp_route.methods,
+        name=mcp_route.name,
+    )
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))

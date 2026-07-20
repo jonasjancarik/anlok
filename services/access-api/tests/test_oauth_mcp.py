@@ -474,12 +474,28 @@ class OAuthHttpTests(unittest.TestCase):
         self.assertEqual(protected.status_code, 200)
         self.assertEqual(protected.json()["resource"], oauth_settings.resource_url)
         self.assertEqual(protected.json()["bearer_methods_supported"], ["header"])
+        self.assertEqual(
+            metadata.json()["issuer"],
+            protected.json()["authorization_servers"][0],
+        )
+        self.assertEqual(
+            metadata.json()["authorization_endpoint"],
+            f"{metadata.json()['issuer'].rstrip('/')}/oauth/authorize",
+        )
 
         unauthorized = client.post("/mcp", json={})
         self.assertEqual(unauthorized.status_code, 401)
         challenge = unauthorized.headers["www-authenticate"]
         self.assertIn("resource_metadata=", challenge)
         self.assertIn(f'scope="{oauth_settings.scope}"', challenge)
+
+    def test_existing_route_trailing_slash_redirect_is_preserved(self):
+        response = TestClient(api.app).post(
+            "/auth/tokens/", json={}, follow_redirects=False
+        )
+
+        self.assertEqual(response.status_code, 307)
+        self.assertEqual(response.headers["location"], "http://testserver/auth/tokens")
 
 
 class OAuthConsentSessionTests(DatabaseTestMixin, unittest.TestCase):

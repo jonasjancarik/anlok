@@ -6,6 +6,7 @@ import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '../styles/globals.css';
 import AppNavbar from '../components/Navbar';
+import { authenticationRedirect, isPublicAuthRoute } from '@/lib/authNavigation';
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
@@ -23,7 +24,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const router = useRouter();
 
-  if (router.pathname === '/login') {
+  if (isPublicAuthRoute(router.pathname)) {
     return <>{children}</>;
   }
 
@@ -61,21 +62,23 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
       } catch (error) {
         console.error('Token verification failed:', error);
         logout();
-        router.push('/login');
+        const redirect = authenticationRedirect(router.pathname);
+        if (redirect) {
+          router.push(redirect);
+        }
       }
     };
 
     verifyToken();
   }, [token, logout, router]);
 
-  const publicRoutes = ['/login'];
-
   if (loading) {
     return <div>Loading...</div>;
   }
 
-  if (!user && !publicRoutes.includes(router.pathname)) {
-    router.push('/login');
+  const redirect = !user ? authenticationRedirect(router.pathname) : null;
+  if (redirect) {
+    router.push(redirect);
     return null;
   }
 

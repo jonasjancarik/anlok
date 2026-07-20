@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "node --test src/lib/*.test.ts",
     "test:navigation": "node --test src/lib/navigation.test.ts"
   },
   "dependencies": {

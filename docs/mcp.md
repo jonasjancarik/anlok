@@ -49,7 +49,10 @@ Then run `/mcp` in Claude Code and follow the browser sign-in prompt. See
 Other MCP 2025-11-25 clients can discover OAuth from the `401` challenge and the
 RFC 9728 protected-resource document. The authorization server supports public
 client dynamic registration, authorization code with PKCE S256, refresh rotation,
-and RFC 8707 resource binding.
+and RFC 8707 resource binding. The protected-resource `authorization_servers`
+entry and authorization-server `issuer` are the same exact identifier, including
+the canonical trailing slash. Endpoint URLs are derived from that identifier
+without introducing duplicate slashes.
 
 ## Tool safety and scope
 
@@ -115,7 +118,9 @@ tunnel for the OAuth issuer must send all of these paths to the same API process
 The web deployment must serve `/oauth/authorize` and use the same `WEB_APP_URL`
 configured on the API. Do not place another login gateway in front of only some
 OAuth paths: MCP clients need to read discovery and registration endpoints before
-the Anlok browser login begins.
+the Anlok browser login begins. The consent page is intentionally available before
+sign-in so it can retain the pending MCP request while the resident completes the
+embedded email-code login.
 
 OAuth defaults are intentionally short: consent requests 10 minutes,
 authorization codes 5 minutes, access tokens 15 minutes, and refresh families 30

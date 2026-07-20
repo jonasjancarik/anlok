@@ -62,12 +62,13 @@ def get_oauth_consent_user(request: Request, db_context=Depends(get_db)) -> User
 @router.get("/.well-known/oauth-authorization-server")
 def authorization_server_metadata():
     issuer = oauth_settings.issuer_url
+    endpoint_base = issuer.rstrip("/")
     return {
         "issuer": issuer,
-        "authorization_endpoint": f"{issuer}/oauth/authorize",
-        "token_endpoint": f"{issuer}/oauth/token",
-        "registration_endpoint": f"{issuer}/oauth/register",
-        "revocation_endpoint": f"{issuer}/oauth/revoke",
+        "authorization_endpoint": f"{endpoint_base}/oauth/authorize",
+        "token_endpoint": f"{endpoint_base}/oauth/token",
+        "registration_endpoint": f"{endpoint_base}/oauth/register",
+        "revocation_endpoint": f"{endpoint_base}/oauth/revoke",
         "scopes_supported": [oauth_settings.scope],
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code", "refresh_token"],

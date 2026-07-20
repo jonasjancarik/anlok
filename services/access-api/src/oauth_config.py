@@ -57,6 +57,9 @@ def load_oauth_settings() -> OAuthSettings:
     issuer_url = _normalized_url(
         "OAUTH_ISSUER_URL", "http://localhost:8000", allow_path=False
     )
+    # An issuer is an exact identifier. Keep the root-path slash so it matches
+    # AnyHttpUrl serialization in the MCP protected-resource metadata.
+    issuer_url = f"{issuer_url}/"
     web_url = _normalized_url("WEB_APP_URL", "http://localhost:3000", allow_path=False)
 
     if os.getenv("ENVIRONMENT", "development").lower() == "production":
