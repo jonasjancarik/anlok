@@ -538,6 +538,91 @@ class OAuthHttpTests(unittest.TestCase):
 
 
 class OAuthConsentSessionTests(DatabaseTestMixin, unittest.TestCase):
+    def test_deleted_user_browser_credentials_cannot_attach_to_reused_user_id(self):
+        client = self.register()
+        url = begin_authorization(
+            response_type="code",
+            client_id=client["client_id"],
+            redirect_uri=REDIRECT_URI,
+            state="state",
+            code_challenge=CHALLENGE,
+            code_challenge_method="S256",
+            resource=oauth_settings.resource_url,
+            scope=oauth_settings.scope,
+        )
+        request_token = parse_qs(urlparse(url).query)["request_id"][0]
+        deleted_user_id = self.user_ids["resident1@example.com"]
+        stale_browser_token = "deleted-user-browser-token"
+
+        with db.get_db() as session:
+            session.add(
+                db.Token(
+                    user_id=deleted_user_id,
+                    token_hash=hash_secret(stale_browser_token),
+                    expiration=int(time.time()) + 3600,
+                )
+            )
+            session.add(
+                db.LoginCode(
+                    user_id=deleted_user_id,
+                    code_hash=hash_secret("DELETED-USER-CODE"),
+                    expiration=int(time.time()) + 3600,
+                )
+            )
+            session.add(
+                db.APIKey(
+                    key_suffix="DEAD",
+                    key_hash=hash_secret("deleted-user-api-key"),
+                    description="Deleted user key",
+                    is_active=True,
+                    user_id=str(deleted_user_id),
+                )
+            )
+            session.commit()
+            session.query(db.User).filter(db.User.id != deleted_user_id).delete(
+                synchronize_session=False
+            )
+            session.commit()
+
+        self.assertTrue(db.remove_user(deleted_user_id))
+        replacement = db.add_user(
+            {
+                "name": "Replacement Admin",
+                "email": "replacement@example.com",
+                "role": "admin",
+                "apartment_id": 1,
+            }
+        )
+        self.assertEqual(replacement.id, deleted_user_id)
+
+        http = TestClient(api.app)
+        headers = {"Authorization": f"Bearer {stale_browser_token}"}
+        inspect = http.get(
+            f"/oauth/authorization-requests/{request_token}", headers=headers
+        )
+        approve = http.post(
+            f"/oauth/authorization-requests/{request_token}",
+            headers=headers,
+            json={"decision": "approve"},
+        )
+        self.assertEqual(inspect.status_code, 401)
+        self.assertEqual(approve.status_code, 401)
+
+        with db.get_db() as session:
+            self.assertEqual(
+                session.query(db.Token).filter_by(user_id=deleted_user_id).count(), 0
+            )
+            self.assertEqual(
+                session.query(db.LoginCode)
+                .filter_by(user_id=deleted_user_id)
+                .count(),
+                0,
+            )
+            self.assertEqual(
+                session.query(db.APIKey).filter_by(user_id=str(deleted_user_id)).count(),
+                0,
+            )
+
     def test_expired_app_token_cannot_approve_oauth(self):
         client = self.register()
         url = begin_authorization(

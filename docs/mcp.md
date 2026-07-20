@@ -131,3 +131,6 @@ authorization codes 5 minutes, access tokens 15 minutes, and refresh families 30
 days. Override the corresponding `OAUTH_*_TTL_SECONDS` values only after reviewing
 the security impact. Used authorization codes remain unusable, refresh tokens
 rotate on every use, and replay revokes the whole refresh family.
+Deleting a user atomically removes that account's browser sessions, pending login
+codes, API keys, authorization codes, access tokens, and refresh tokens before the
+user row can be reused.
