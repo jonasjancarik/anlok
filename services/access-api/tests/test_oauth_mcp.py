@@ -419,6 +419,39 @@ class OAuthHttpTests(unittest.TestCase):
         self.assertIn(f'scope="{oauth_settings.scope}"', challenge)
 
 
+class OAuthConsentSessionTests(DatabaseTestMixin, unittest.TestCase):
+    def test_expired_app_token_cannot_approve_oauth(self):
+        client = self.register()
+        url = begin_authorization(
+            response_type="code",
+            client_id=client["client_id"],
+            redirect_uri=REDIRECT_URI,
+            state="state",
+            code_challenge=CHALLENGE,
+            code_challenge_method="S256",
+            resource=oauth_settings.resource_url,
+            scope=oauth_settings.scope,
+        )
+        request_token = parse_qs(urlparse(url).query)["request_id"][0]
+        expired_token = "expired-app-session"
+        with db.get_db() as session:
+            session.add(
+                db.Token(
+                    user_id=self.user_ids["resident1@example.com"],
+                    token_hash=hash_secret(expired_token),
+                    expiration=int(time.time()) - 1,
+                )
+            )
+            session.commit()
+
+        response = TestClient(api.app).post(
+            f"/oauth/authorization-requests/{request_token}",
+            headers={"Authorization": f"Bearer {expired_token}"},
+            json={"decision": "approve"},
+        )
+        self.assertEqual(response.status_code, 401)
+
+
 class McpProtocolTests(DatabaseTestMixin, unittest.IsolatedAsyncioTestCase):
     async def test_official_client_initialize_discovery_scope_and_confirmation(self):
         _, tokens = self.http_access_token()

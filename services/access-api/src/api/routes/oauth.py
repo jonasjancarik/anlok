@@ -1,14 +1,15 @@
 """OAuth 2.1 authorization-server endpoints used by remote MCP clients."""
 
+import time
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from src.api.dependencies import get_current_user
+from src.api.exceptions import APIException
 from src.api.utils import check_rate_limit
-from src.db import User
+from src.db import Token, User, get_db
 from src.oauth_config import oauth_settings
 from src.oauth_service import (
     OAuthError,
@@ -21,6 +22,7 @@ from src.oauth_service import (
     revoke_token,
     rotate_refresh_token,
 )
+from src.utils import hash_secret
 
 
 router = APIRouter(tags=["oauth"])
@@ -28,6 +30,33 @@ router = APIRouter(tags=["oauth"])
 
 class AuthorizationDecision(BaseModel):
     decision: Literal["approve", "deny"]
+
+
+def get_oauth_consent_user(request: Request, db_context=Depends(get_db)) -> User:
+    authorization = request.headers.get("Authorization", "")
+    if not authorization.startswith("Bearer "):
+        raise APIException(
+            status_code=401, detail="A current Anlok sign-in is required"
+        )
+    token = authorization.removeprefix("Bearer ").strip()
+    if not token:
+        raise APIException(
+            status_code=401, detail="A current Anlok sign-in is required"
+        )
+
+    with db_context as session:
+        user = (
+            session.query(User)
+            .join(Token, Token.user_id == User.id)
+            .filter(
+                Token.token_hash == hash_secret(token),
+                Token.expiration > int(time.time()),
+            )
+            .first()
+        )
+    if not user:
+        raise APIException(status_code=401, detail="Your Anlok sign-in has expired")
+    return user
 
 
 @router.get("/.well-known/oauth-authorization-server")
@@ -123,7 +152,7 @@ def authorize(
 
 @router.get("/oauth/authorization-requests/{request_token}")
 def inspect_authorization_request(
-    request_token: str, current_user: User = Depends(get_current_user)
+    request_token: str, current_user: User = Depends(get_oauth_consent_user)
 ):
     try:
         return get_authorization_request(request_token)
@@ -135,7 +164,7 @@ def inspect_authorization_request(
 def submit_authorization_decision(
     request_token: str,
     decision: AuthorizationDecision,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_oauth_consent_user),
 ):
     try:
         redirect_uri = decide_authorization(
