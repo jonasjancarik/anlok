@@ -68,7 +68,7 @@ except Exception as e:
     print(f"Error setting up GPIO: {e}")
     if "Cannot determine SOC peripheral base address" in str(e):
         sys.exit(
-            "rpi-gpio is not supported on this hardware. If you are on a Raspberry PI 5, run pip uninstall rpi-gpio; pip install rpi-lgpio"
+            "rpi-gpio is not supported on this hardware. Raspberry Pi 5 requires rpi-lgpio instead."
         )
 
 

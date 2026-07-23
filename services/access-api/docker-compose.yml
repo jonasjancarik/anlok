@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     build:
@@ -11,7 +9,7 @@ services:
       - .env
     ports:
       - "8000:8000"
-    command: sh -c "[ ! -f data.db ] && python setup.py; python api.py"
+    command: sh -c "[ ! -f data.db ] && uv run --locked python setup.py; exec uv run --locked python api.py"
     stdin_open: true
     tty: true
 

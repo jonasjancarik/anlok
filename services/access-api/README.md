@@ -88,23 +88,26 @@ flowchart TD
 ## Install
 
 ```bash
-python -m venv .venv
-. .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+uv sync --locked
 ```
 
-If you encounter an error installing `evdev`, try installing the `python3-evdev` package with `sudo apt-get install python3-evdev`. In that case you may want to create the virtual environment with the `--system-site-packages` flag (i.e. `python -m venv .venv --system-site-packages`) and ignore the `evdev` package in the `requirements.txt` file with `grep -v "evdev" requirements.txt | pip install -r /dev/stdin`.
+The project requires uv 0.11.31 or newer and Python 3.11. `uv sync` installs
+`evdev` on Linux and the GPIO dependencies on ARM Linux, while excluding those
+hardware-specific packages on macOS.
 
-If you want to get the latest versions of all the required packages, you can try running `pip install fastapi sqlalchemy boto3 python-dotenv uvicorn "pydantic[email]" rpi-lgpio evdev "httpx[http2]" "PyJWT[crypto]" google-auth requests` directly.
+Run the API with the locked environment:
+
+```bash
+uv run --locked python api.py
+```
 
 ### Development
 
-For development on a machine which doesn't support `RPi.GPIO` and `evdev`, run just `pip install fastapi sqlalchemy boto3 python-dotenv uvicorn "pydantic[email]" "httpx[http2]" "PyJWT[crypto]" google-auth requests` to exclude these packages.
-
-Then run the setup script to create a dummy `RPi` package:
+On a machine without Raspberry Pi GPIO hardware, create the existing dummy
+`RPi.GPIO` module after syncing:
 
 ```bash
+uv sync --locked
 ./setup_mock_rpi_gpio.sh
 ```
 
@@ -331,11 +334,14 @@ Set environment variables to configure the app. First copy the example file with
 
 Login emails include both a code and a clickable link. The link is built from `WEB_APP_URL` with `/login` appended.
 
-Run `python setup.py` to create the database and set up the first user. You can also use a CSV file with usernames and PIN codes to create multiple users at once - use the `users.csv.example` as a template.
+Run `uv run --locked python setup.py` to create the database and set up the
+first user. You can also use a CSV file with usernames and PIN codes to create
+multiple users at once; use `users.csv.example` as a template.
 
 ### Launching the API server
 
-Launch the API server with `uvicorn api:app` (or with the `--reload` flag for development).
+Launch the API server with `uv run --locked uvicorn api:app` (or add the
+`--reload` flag for development).
 
 You need to obtain credentials first to use the API directly. You can either sign in through one of the clients and use the bearer token from the `Authorization` header, or create an API key from the admin profile settings in the web or Expo app. API keys are accepted through the `X-API-Key` header or the `api_key` query parameter.
 

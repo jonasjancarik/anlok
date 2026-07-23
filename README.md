@@ -14,7 +14,7 @@ Each project keeps its own runtime, dependencies, and lockfiles:
 
 - `apps/web`: `npm install`, `npm run dev`
 - `apps/app`: `npm install`, follow `apps/app/README.md`
-- `services/access-api`: create a virtualenv, install `requirements.txt`, then run from `services/access-api`
+- `services/access-api`: run `uv sync --locked`, then use `uv run` from `services/access-api`
 
 ## Remote MCP
 

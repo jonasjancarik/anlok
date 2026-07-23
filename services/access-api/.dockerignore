@@ -25,7 +25,12 @@ coverage.xml
 
 # Virtual environment
 venv
+.venv
+.venv*
 .env
+
+# Local Raspberry Pi GPIO mock
+RPi
 
 # IDEs
 .vscode
