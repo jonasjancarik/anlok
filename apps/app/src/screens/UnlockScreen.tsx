@@ -1,6 +1,17 @@
 import * as Linking from 'expo-linking';
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Alert,
+  Animated,
+  Easing,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import { api, apiErrorMessage, authHeaders } from '../lib/api';
@@ -13,18 +24,26 @@ const UNLOCK_BUTTON_BACKGROUND = '#FFFDF4';
 const UNLOCK_RING_COLOR = '#343434';
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
+type UnlockState = 'ready' | 'unlocking' | 'commandSent' | 'failed';
+
+const statusCopy: Record<UnlockState, string> = {
+  ready: 'Ready to unlock',
+  unlocking: 'Sending unlock command…',
+  commandSent: 'Unlock command sent. The door may take a moment to respond.',
+  failed: 'Couldn’t send unlock command.',
+};
+
 export const UnlockScreen = () => {
   const { token } = useAuth();
   const { height, width } = useWindowDimensions();
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [status, setStatus] = useState('Ready to unlock');
+  const [unlockState, setUnlockState] = useState<UnlockState>('ready');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [handledAutoUnlockUrl, setHandledAutoUnlockUrl] = useState<string | null>(null);
-
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const unlockRingAnim = useRef(new Animated.Value(0)).current;
+  const handledUnlockUrlRef = useRef<string | null>(null);
+  const scaleAnim = useMemo(() => new Animated.Value(1), []);
+  const unlockRingAnim = useMemo(() => new Animated.Value(0), []);
   const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const unlockSize = useMemo(() => {
@@ -62,6 +81,14 @@ export const UnlockScreen = () => {
     }
   }, []);
 
+  const announce = useCallback((message: string) => {
+    try {
+      AccessibilityInfo.announceForAccessibility(message);
+    } catch {
+      // Keep the unlock action available if a platform cannot announce status.
+    }
+  }, []);
+
   const resetUnlockAnimation = useCallback(() => {
     clearResetTimeout();
     unlockRingAnim.stopAnimation();
@@ -76,7 +103,7 @@ export const UnlockScreen = () => {
     };
   }, [clearResetTimeout, unlockRingAnim]);
 
-  const startUnlockAnimation = useCallback(() => {
+  const startCooldown = useCallback(() => {
     clearResetTimeout();
     unlockRingAnim.stopAnimation();
     unlockRingAnim.setValue(0);
@@ -95,7 +122,7 @@ export const UnlockScreen = () => {
 
     resetTimeoutRef.current = setTimeout(() => {
       setCooldownUntil(null);
-      setStatus('Ready to unlock');
+      setUnlockState('ready');
       unlockRingAnim.setValue(0);
       resetTimeoutRef.current = null;
     }, COOLDOWN_SECONDS * 1000);
@@ -108,48 +135,60 @@ export const UnlockScreen = () => {
 
     setLoading(true);
     setError('');
-    setStatus('Unlocked...');
-    startUnlockAnimation();
+    setUnlockState('unlocking');
+    announce(statusCopy.unlocking);
 
     try {
       await api.post('/doors/unlock', null, { headers: authHeaders(token) });
-      setStatus('Door unlocked successfully.');
+      setUnlockState('commandSent');
+      startCooldown();
+      announce(statusCopy.commandSent);
     } catch (nextError) {
       resetUnlockAnimation();
-      setError(apiErrorMessage(nextError, 'Failed to unlock door.'));
-      setStatus('Ready to unlock');
+      const message = apiErrorMessage(nextError, 'Failed to send unlock command.');
+      setError(message);
+      setUnlockState('failed');
+      announce(`${statusCopy.failed} ${message}`);
     } finally {
       setLoading(false);
     }
-  }, [cooldownLeft, loading, resetUnlockAnimation, startUnlockAnimation, token]);
+  }, [announce, cooldownLeft, loading, resetUnlockAnimation, startCooldown, token]);
 
   useEffect(() => {
     if (!token) {
       return;
     }
 
-    const maybeAutoUnlock = (url: string | null) => {
-      if (!url || url === handledAutoUnlockUrl) {
+    const requestUnlockConfirmation = (url: string | null) => {
+      if (!url || url === handledUnlockUrlRef.current) {
         return;
       }
       const { queryParams } = Linking.parse(url);
       if (queryParams?.['unlock-now'] === undefined) {
         return;
       }
-      setHandledAutoUnlockUrl(url);
-      void unlockDoor();
+      handledUnlockUrlRef.current = url;
+
+      Alert.alert(
+        'Send unlock command?',
+        'This link asks Anlok to send an unlock command to the door. The app cannot confirm that the door physically opened.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Send command', onPress: () => void unlockDoor() },
+        ]
+      );
     };
 
     void Linking.getInitialURL().then((url) => {
-      maybeAutoUnlock(url);
+      requestUnlockConfirmation(url);
     });
 
     const subscription = Linking.addEventListener('url', ({ url }: { url: string }) => {
-      maybeAutoUnlock(url);
+      requestUnlockConfirmation(url);
     });
 
     return () => subscription.remove();
-  }, [handledAutoUnlockUrl, token, unlockDoor]);
+  }, [token, unlockDoor]);
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -166,7 +205,7 @@ export const UnlockScreen = () => {
   };
 
   const unlockDisabled = !token || cooldownLeft > 0 || loading;
-  const unlockLabel = cooldownLeft > 0 || loading ? 'Unlocked...' : 'Unlock Door';
+  const unlockLabel = loading ? 'Unlocking…' : cooldownLeft > 0 ? 'Command sent' : 'Unlock Door';
   const unavailable = !token;
 
   return (
@@ -180,8 +219,18 @@ export const UnlockScreen = () => {
         <View style={[screenStyles.stage, { height: unlockSize, width: unlockSize }]}>
           <Animated.View style={[screenStyles.buttonShadow, { borderRadius: unlockSize / 2, height: unlockSize, transform: [{ scale: scaleAnim }], width: unlockSize }, shadows]}>
             <Pressable
+              accessibilityHint={
+                unlockDisabled
+                  ? loading
+                    ? 'An unlock command is being sent.'
+                    : cooldownLeft > 0
+                      ? `You can send another unlock command in ${cooldownLeft} seconds.`
+                      : 'Sign in to send an unlock command.'
+                  : 'Sends an unlock command to the door. This does not confirm the door physically opened.'
+              }
+              accessibilityLabel="Unlock door"
               accessibilityRole="button"
-              accessibilityState={{ disabled: unlockDisabled }}
+              accessibilityState={{ busy: loading, disabled: unlockDisabled }}
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}
               onPress={unlockDoor}
@@ -222,10 +271,12 @@ export const UnlockScreen = () => {
         </View>
 
         <View style={screenStyles.statusArea}>
-          <Text style={[uiStyles.subtleText, screenStyles.statusText]}>{status}</Text>
+          <Text accessibilityLiveRegion="polite" style={[uiStyles.subtleText, screenStyles.statusText]}>
+            {statusCopy[unlockState]}
+          </Text>
           {error ? (
             <View style={screenStyles.errorPanel}>
-              <Text style={screenStyles.errorText}>{error}</Text>
+              <Text accessibilityLiveRegion="assertive" style={screenStyles.errorText}>{error}</Text>
             </View>
           ) : null}
         </View>

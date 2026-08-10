@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Platform, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { api, apiErrorMessage, authHeaders } from '../../lib/api';
@@ -39,6 +39,7 @@ const dayOptions = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Sat
 const formatTime = (value: string) => value.slice(0, 5);
 const isValidDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00`));
 const isValidTime = (value: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+const isForwardTimeRange = (start: string, end: string) => end > start;
 
 const webInputProps = (type: 'date' | 'time') =>
   Platform.OS === 'web' ? ({ type } as any) : {};
@@ -79,7 +80,7 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
   const [oneEndDate, setOneEndDate] = useState('');
   const [oneStartTime, setOneStartTime] = useState('09:00');
   const [oneEndTime, setOneEndTime] = useState('17:00');
-  const [endDateManuallySet, setEndDateManuallySet] = useState(false);
+  const endDateManuallySetRef = useRef(false);
   const hasSchedules = recurring.length > 0 || oneTime.length > 0;
 
   const loadSchedules = useCallback(async () => {
@@ -108,12 +109,17 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
 
     const day = Number(dayOfWeek);
     if (Number.isNaN(day) || day < 0 || day > 6) {
-      setError('day_of_week must be 0..6 (Mon..Sun).');
+      setError('Choose a day for recurring access.');
       return;
     }
 
     if (!isValidTime(recurringStartTime) || !isValidTime(recurringEndTime)) {
-      setError('Use HH:mm time format.');
+      setError('Enter each time as HH:mm, for example 09:30.');
+      return;
+    }
+
+    if (!isForwardTimeRange(recurringStartTime, recurringEndTime)) {
+      setError('End time must be later than start time. Overnight access needs two schedules.');
       return;
     }
 
@@ -143,13 +149,13 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
 
   const handleStartDateChange = (value: string) => {
     setOneStartDate(value);
-    if (!endDateManuallySet) {
+    if (!endDateManuallySetRef.current) {
       setOneEndDate(value);
     }
   };
 
   const handleEndDateChange = (value: string) => {
-    setEndDateManuallySet(true);
+    endDateManuallySetRef.current = true;
     setOneEndDate(value);
   };
 
@@ -158,7 +164,7 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
     setSuccess('');
 
     if (!isValidDate(oneStartDate) || !isValidDate(oneEndDate)) {
-      setError('Use YYYY-MM-DD date format.');
+      setError('Enter each date as YYYY-MM-DD, for example 2026-08-10.');
       return;
     }
 
@@ -168,7 +174,12 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
     }
 
     if (!isValidTime(oneStartTime) || !isValidTime(oneEndTime)) {
-      setError('Use HH:mm time format.');
+      setError('Enter each time as HH:mm, for example 09:30.');
+      return;
+    }
+
+    if (!isForwardTimeRange(oneStartTime, oneEndTime)) {
+      setError('End time must be later than start time. Overnight access needs two schedules.');
       return;
     }
 
@@ -192,22 +203,22 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
       setOneEndDate('');
       setOneStartTime('09:00');
       setOneEndTime('17:00');
-      setEndDateManuallySet(false);
+      endDateManuallySetRef.current = false;
       await loadSchedules();
     } catch (nextError) {
       setError(apiErrorMessage(nextError, 'Failed to add one-time access.'));
     }
   };
 
-  const deleteRecurring = (id: number) => {
-    Alert.alert('Delete recurring schedule', 'Delete this recurring schedule?', [
+  const deleteRecurring = (item: RecurringSchedule) => {
+    Alert.alert('Remove recurring access?', `${dayLabel(item.day_of_week)}, ${formatTime(item.start_time)} to ${formatTime(item.end_time)} will no longer unlock the door.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
           try {
-            await api.delete(`/guests/recurring-schedules/${id}`, {
+            await api.delete(`/guests/recurring-schedules/${item.id}`, {
               headers: authHeaders(token),
             });
             setSuccess('Recurring schedule deleted.');
@@ -220,15 +231,15 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
     ]);
   };
 
-  const deleteOneTime = (id: number) => {
-    Alert.alert('Delete one-time access', 'Delete this one-time access?', [
+  const deleteOneTime = (item: OneTimeAccess) => {
+    Alert.alert('Remove one-time access?', `${item.start_date} to ${item.end_date} will no longer unlock the door.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
           try {
-            await api.delete(`/guests/one-time-accesses/${id}`, {
+            await api.delete(`/guests/one-time-accesses/${item.id}`, {
               headers: authHeaders(token),
             });
             setSuccess('One-time access deleted.');
@@ -253,7 +264,7 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
 
   const applyOneTimeDate = (date: string) => {
     setOneStartDate(date);
-    if (!endDateManuallySet) {
+    if (!endDateManuallySetRef.current) {
       setOneEndDate(date);
     }
   };
@@ -269,7 +280,7 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
           style={{ flexGrow: 1 }}
         />
         <Button
-          title="One-Time"
+          title="One-time"
           size="small"
           variant={tab === 'oneTime' ? 'primary' : 'ghost'}
           onPress={() => setTab('oneTime')}
@@ -284,16 +295,17 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
       {tab === 'recurring' ? (
         <>
           <View style={{ gap: 6, marginTop: 8 }}>
-            <FieldLabel>Day of Week</FieldLabel>
+            <FieldLabel>Day of week</FieldLabel>
             <Row style={{ gap: 6 }}>
               {dayOptions.map((label, index) => (
                 <Button
                   key={label}
                   title={label.slice(0, 3)}
+                  accessibilityLabel={label}
                   size="small"
                   variant={dayOfWeek === String(index) ? 'primary' : 'secondary'}
                   onPress={() => setDayOfWeek(String(index))}
-                  style={{ paddingHorizontal: 10, minHeight: 32 }}
+                  style={{ paddingHorizontal: 10, minHeight: 44 }}
                 />
               ))}
             </Row>
@@ -302,20 +314,24 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
               <FieldColumn>
                 <FieldLabel>Start Time</FieldLabel>
                 <Input
+                  accessibilityLabel="Recurring access start time"
                   value={recurringStartTime}
                   onChangeText={setRecurringStartTime}
                   placeholder="HH:mm"
                   keyboardType={Platform.OS === 'web' ? 'default' : 'numbers-and-punctuation'}
+                  maxLength={5}
                   {...webInputProps('time')}
                 />
               </FieldColumn>
               <FieldColumn>
                 <FieldLabel>End Time</FieldLabel>
                 <Input
+                  accessibilityLabel="Recurring access end time"
                   value={recurringEndTime}
                   onChangeText={setRecurringEndTime}
                   placeholder="HH:mm"
                   keyboardType={Platform.OS === 'web' ? 'default' : 'numbers-and-punctuation'}
+                  maxLength={5}
                   {...webInputProps('time')}
                 />
               </FieldColumn>
@@ -328,12 +344,12 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
                   size="small"
                   variant="secondary"
                   onPress={() => applyRecurringPreset(preset.start, preset.end)}
-                  style={{ minHeight: 32, paddingHorizontal: 10 }}
+                  style={{ minHeight: 44, paddingHorizontal: 10 }}
                 />
               ))}
             </Row>
             <Button 
-              title="Add Schedule" 
+              title="Add recurring access"
               size="small"
               icon={<Feather name="plus" size={14} color="#fff" />}
               onPress={addRecurring} 
@@ -371,9 +387,10 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
                   <Button
                     size="icon"
                     title=""
+                    accessibilityLabel={`Delete ${dayLabel(item.day_of_week)} recurring access`}
                     variant="ghost"
                     icon={<Feather name="trash-2" size={16} color={palette.danger} />}
-                    onPress={() => deleteRecurring(item.id)}
+                    onPress={() => deleteRecurring(item)}
                   />
                 </View>
               ))}
@@ -385,22 +402,26 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
           <View style={{ gap: 6, marginTop: 8 }}>
             <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap' }}>
               <FieldColumn>
-                <FieldLabel>Start Date</FieldLabel>
+                <FieldLabel>Start date</FieldLabel>
                 <Input
+                  accessibilityLabel="One-time access start date"
                   value={oneStartDate}
                   onChangeText={handleStartDateChange}
                   placeholder={today}
                   keyboardType={Platform.OS === 'web' ? 'default' : 'numbers-and-punctuation'}
+                  maxLength={10}
                   {...webInputProps('date')}
                 />
               </FieldColumn>
               <FieldColumn>
-                <FieldLabel>End Date</FieldLabel>
+                <FieldLabel>End date</FieldLabel>
                 <Input
+                  accessibilityLabel="One-time access end date"
                   value={oneEndDate}
                   onChangeText={handleEndDateChange}
                   placeholder={today}
                   keyboardType={Platform.OS === 'web' ? 'default' : 'numbers-and-punctuation'}
+                  maxLength={10}
                   {...webInputProps('date')}
                 />
               </FieldColumn>
@@ -413,28 +434,32 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
                   size="small"
                   variant="secondary"
                   onPress={() => applyOneTimeDate(shortcut.value)}
-                  style={{ minHeight: 32, paddingHorizontal: 10 }}
+                  style={{ minHeight: 44, paddingHorizontal: 10 }}
                 />
               ))}
             </Row>
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 4, flexWrap: 'wrap' }}>
               <FieldColumn>
-                <FieldLabel>Start Time</FieldLabel>
+                <FieldLabel>Start time</FieldLabel>
                 <Input
+                  accessibilityLabel="One-time access start time"
                   value={oneStartTime}
                   onChangeText={setOneStartTime}
                   placeholder="09:00"
                   keyboardType={Platform.OS === 'web' ? 'default' : 'numbers-and-punctuation'}
+                  maxLength={5}
                   {...webInputProps('time')}
                 />
               </FieldColumn>
               <FieldColumn>
-                <FieldLabel>End Time</FieldLabel>
+                <FieldLabel>End time</FieldLabel>
                 <Input
+                  accessibilityLabel="One-time access end time"
                   value={oneEndTime}
                   onChangeText={setOneEndTime}
                   placeholder="17:00"
                   keyboardType={Platform.OS === 'web' ? 'default' : 'numbers-and-punctuation'}
+                  maxLength={5}
                   {...webInputProps('time')}
                 />
               </FieldColumn>
@@ -447,12 +472,12 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
                   size="small"
                   variant="secondary"
                   onPress={() => applyOneTimePreset(preset.start, preset.end)}
-                  style={{ minHeight: 32, paddingHorizontal: 10 }}
+                  style={{ minHeight: 44, paddingHorizontal: 10 }}
                 />
               ))}
             </Row>
             <Button
-              title="Add Access"
+              title="Add one-time access"
               size="small"
               icon={<Feather name="plus" size={14} color="#fff" />}
               onPress={addOneTime}
@@ -462,7 +487,7 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
           </View>
 
           <Divider />
-          <FieldLabel style={{ marginTop: 8 }}>Active Accesses</FieldLabel>
+          <FieldLabel style={{ marginTop: 8 }}>Active access</FieldLabel>
           {oneTime.length === 0 ? (
             <SubtleText>{loading ? 'Loading...' : 'No one-time accesses configured.'}</SubtleText>
           ) : (
@@ -496,9 +521,10 @@ export const ScheduleManagement = ({ token, user }: ScheduleManagementProps) => 
                   <Button
                     size="icon"
                     title=""
+                    accessibilityLabel={`Delete one-time access from ${item.start_date} to ${item.end_date}`}
                     variant="ghost"
                     icon={<Feather name="trash-2" size={16} color={palette.danger} />}
-                    onPress={() => deleteOneTime(item.id)}
+                    onPress={() => deleteOneTime(item)}
                   />
                 </View>
               ))}

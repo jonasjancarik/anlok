@@ -9,6 +9,7 @@ import {
   Divider,
   FieldLabel,
   Input,
+  ListState,
   SectionCard,
   SubtleText,
   palette,
@@ -141,11 +142,17 @@ export const ApartmentManagement = ({ token }: ApartmentManagementProps) => {
       </View>
 
       {success ? <Banner type="success" text={success} /> : null}
-      {error ? <Banner type="error" text={error} /> : null}
+      {error && apartments.length > 0 ? <Banner type="error" text={error} /> : null}
 
       <Divider />
       {apartments.length === 0 ? (
-        <SubtleText>{loading ? 'Loading apartments...' : 'No apartments found.'}</SubtleText>
+        <ListState
+          loading={loading}
+          error={error}
+          emptyTitle="No apartments yet"
+          emptyText="Create the first apartment to organize residents and building access."
+          onRetry={() => void loadApartments()}
+        />
       ) : (
         <View style={{ gap: 0 }}>
           {apartments.map((apartment, index) => (
@@ -168,10 +175,11 @@ export const ApartmentManagement = ({ token }: ApartmentManagementProps) => {
                 <SubtleText style={{ fontSize: 13 }}>{apartment.description || 'No description'}</SubtleText>
               </View>
               <View style={{ flexDirection: 'row', gap: 6 }}>
-                <Button size="icon" title="" variant="secondary" icon={<Feather name="edit-2" size={14} color={palette.text} />} onPress={() => editApartment(apartment)} />
+                <Button size="icon" title="" accessibilityLabel={`Edit apartment ${apartment.number}`} variant="secondary" icon={<Feather name="edit-2" size={14} color={palette.text} />} onPress={() => editApartment(apartment)} />
                 <Button
                   size="icon"
                   title=""
+                  accessibilityLabel={`Delete apartment ${apartment.number}`}
                   variant="ghost"
                   icon={<Feather name="trash-2" size={14} color={palette.danger} />}
                   onPress={() => removeApartment(apartment)}

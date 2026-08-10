@@ -1,5 +1,5 @@
 import * as Linking from 'expo-linking';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
@@ -21,7 +21,7 @@ export const LoginScreen = () => {
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
   const [exchanging, setExchanging] = useState(false);
-  const [autoAttempted, setAutoAttempted] = useState(false);
+  const autoAttemptedRef = useRef(false);
 
   const hasCode = useMemo(() => loginCode.trim().length > 0, [loginCode]);
   const showGmailShortcut = useMemo(
@@ -79,7 +79,7 @@ export const LoginScreen = () => {
       if (typeof code === 'string') {
         setLoginCode(code);
         setEmailSent(true);
-        setAutoAttempted(false);
+        autoAttemptedRef.current = false;
       }
     };
 
@@ -97,7 +97,7 @@ export const LoginScreen = () => {
       if (typeof code === 'string') {
         setLoginCode(code);
         setEmailSent(true);
-        setAutoAttempted(false);
+        autoAttemptedRef.current = false;
       }
     });
 
@@ -105,15 +105,15 @@ export const LoginScreen = () => {
   }, []);
 
   useEffect(() => {
-    if (autoAttempted) {
+    if (autoAttemptedRef.current) {
       return;
     }
 
     if (loginCode.trim() && email.trim()) {
-      setAutoAttempted(true);
+      autoAttemptedRef.current = true;
       exchangeCode(loginCode);
     }
-  }, [loginCode, email, autoAttempted, exchangeCode]);
+  }, [loginCode, email, exchangeCode]);
 
   const sendLoginCode = async () => {
     setError('');
@@ -142,7 +142,7 @@ export const LoginScreen = () => {
     setEmailSent(false);
     setError('');
     setStatus('');
-    setAutoAttempted(false);
+    autoAttemptedRef.current = false;
   };
 
   const openGmail = useCallback(async () => {
@@ -212,7 +212,10 @@ export const LoginScreen = () => {
                     <Input
                       accessibilityLabel="Login code"
                       autoCapitalize="none"
+                      autoComplete="one-time-code"
                       autoCorrect={false}
+                      keyboardType="number-pad"
+                      maxLength={12}
                       nativeID="login-code"
                       onChangeText={setLoginCode}
                       placeholder="Code received by email"
@@ -220,7 +223,7 @@ export const LoginScreen = () => {
                     />
                   </View>
                   <Button
-                    title="Login"
+                    title="Sign in"
                     onPress={() => exchangeCode(loginCode)}
                     loading={exchanging}
                     disabled={!email.trim() || !hasCode}
@@ -236,7 +239,7 @@ export const LoginScreen = () => {
                     />
                   ) : null}
                   <Button
-                    title="Start Over"
+                    title="Use a different email"
                     variant="ghost"
                     onPress={reset}
                     icon={<Feather name="refresh-cw" size={18} color={palette.primary} />}
@@ -249,7 +252,7 @@ export const LoginScreen = () => {
 
               {emailSent ? (
                 <Text style={[uiStyles.subtleText, { textAlign: 'center', marginTop: 8 }]}>
-                  Didn't receive the email? Start over and try again.
+                  Didn&apos;t receive the email? Check spam or use a different email address.
                 </Text>
               ) : null}
             </SectionCard>
@@ -258,7 +261,7 @@ export const LoginScreen = () => {
               <Text style={screenStyles.serverText}>Server: {apiUrl}</Text>
               {Platform.OS !== 'web' ? (
                 <Button
-                  title="Change server URL"
+                  title="Change server"
                   variant="ghost"
                   onPress={() => navigation.navigate('ServerSetup')}
                   icon={<Feather name="server" size={16} color={palette.primary} />}

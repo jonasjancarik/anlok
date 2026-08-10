@@ -19,7 +19,7 @@ interface UserProfileProps {
 export const UserProfile = ({ token, user }: UserProfileProps) => {
   const { logout, updateUser } = useAuth();
   const [notificationStatus, setNotificationStatus] = useState(
-    'Notifications are not enabled on this device.'
+    'Manage door activity notifications for this device.'
   );
   const [registeringNotifications, setRegisteringNotifications] = useState(false);
   const [testingNotifications, setTestingNotifications] = useState(false);
@@ -74,7 +74,7 @@ export const UserProfile = ({ token, user }: UserProfileProps) => {
 
       <SectionCard>
         <Button 
-          title="Sign Out" 
+          title="Sign out"
           variant="danger" 
           icon={<Feather name="log-out" size={16} color="#fff" />}
           onPress={() => void logout()} 

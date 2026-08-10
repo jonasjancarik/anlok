@@ -10,6 +10,7 @@ import {
   Divider,
   FieldLabel,
   Input,
+  ListState,
   SectionCard,
   SubtleText,
   palette,
@@ -133,11 +134,17 @@ export const ApiKeyManagement = ({ token, userId }: ApiKeyManagementProps) => {
       ) : null}
       
       {success && !newKey ? <Banner type="success" text={success} /> : null}
-      {error ? <Banner type="error" text={error} /> : null}
+      {error && apiKeys.length > 0 ? <Banner type="error" text={error} /> : null}
 
       <Divider />
       {apiKeys.length === 0 ? (
-        <SubtleText>{loading ? 'Loading keys...' : 'No API keys configured.'}</SubtleText>
+        <ListState
+          loading={loading}
+          error={error}
+          emptyTitle="No API keys"
+          emptyText="Create a key when you need to connect another trusted service."
+          onRetry={() => void loadKeys()}
+        />
       ) : (
         <View style={{ gap: 0 }}>
           {apiKeys.map((apiKey, index) => (
@@ -165,6 +172,7 @@ export const ApiKeyManagement = ({ token, userId }: ApiKeyManagementProps) => {
               <Button
                 size="icon"
                 title=""
+                accessibilityLabel={`Delete API key ending in ${apiKey.key_suffix}`}
                 variant="ghost"
                 icon={<Feather name="trash-2" size={16} color={palette.danger} />}
                 onPress={() => deleteKey(apiKey.key_suffix)}

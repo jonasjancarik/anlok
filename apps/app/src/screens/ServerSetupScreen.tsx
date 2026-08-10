@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import axios from 'axios';
 import { Feather } from '@expo/vector-icons';
 import { useServerConfig } from '../contexts/ServerConfigContext';
 import { Banner, Button, FieldLabel, Input, PageScroll, Screen, SectionCard, styles as uiStyles, palette } from '../components/common/ui';
@@ -10,6 +11,7 @@ export const ServerSetupScreen = () => {
   const [draftUrl, setDraftUrl] = useState(() => apiUrl || suggestedApiUrl);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [connectionStatus, setConnectionStatus] = useState('');
 
   const validationError = useMemo(() => {
     const trimmed = draftUrl.trim();
@@ -41,11 +43,28 @@ export const ServerSetupScreen = () => {
 
     setSaving(true);
     setError('');
+    setConnectionStatus('');
 
     try {
+      const response = await axios.get<{ status?: string }>(`${normalizedUrl}/health`, {
+        timeout: 8000,
+      });
+
+      if (response.data?.status !== 'ok') {
+        setError('This server responded, but it doesn’t appear to be an Anlok server.');
+        return;
+      }
+
+      setConnectionStatus(`Connected to ${normalizedUrl}.`);
       await saveApiUrl(draftUrl);
-    } catch {
-      setError('Failed to save server URL.');
+    } catch (nextError) {
+      if (axios.isAxiosError(nextError) && nextError.code === 'ECONNABORTED') {
+        setError('The server took too long to respond. Check the address and your connection, then try again.');
+      } else if (axios.isAxiosError(nextError) && nextError.response) {
+        setError(`The server responded with status ${nextError.response.status}, but Anlok couldn’t connect.`);
+      } else {
+        setError('Couldn’t reach this server. Check the address, certificate, and your Wi-Fi, then try again.');
+      }
     } finally {
       setSaving(false);
     }
@@ -89,12 +108,15 @@ export const ServerSetupScreen = () => {
             </View>
 
             {error ? <Banner type="error" text={error} /> : null}
+            {connectionStatus ? <Banner type="success" text={connectionStatus} /> : null}
 
             <Button
-              title="Continue"
+              title="Test and continue"
               onPress={() => void save()}
               loading={saving}
-              icon={<Feather name="arrow-right" size={18} color="#fff" />}
+              disabled={!!validationError}
+              accessibilityHint="Checks this server before saving it"
+              icon={<Feather name="wifi" size={18} color="#fff" />}
               style={{ marginTop: 12 }}
             />
           </SectionCard>

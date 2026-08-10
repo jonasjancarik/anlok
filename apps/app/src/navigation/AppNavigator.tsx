@@ -3,7 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
-import { ActivityIndicator, Platform, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Platform, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { useServerConfig } from '../contexts/ServerConfigContext';
@@ -23,10 +23,7 @@ const TAB_BAR_COMPACT_SAFE_AREA_MAX = 16;
 const ANDROID_LARGE_BOTTOM_SYSTEM_BAR_MIN_INSET = 40;
 
 const MainTabs = () => {
-  const { user } = useAuth();
-  const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const showTabLabels = width >= 520;
   const hasLargeAndroidBottomSystemBar =
     Platform.OS === 'android' &&
     insets.bottom >= ANDROID_LARGE_BOTTOM_SYSTEM_BAR_MIN_INSET;
@@ -49,8 +46,8 @@ const MainTabs = () => {
         headerTitleStyle: { fontWeight: '800', color: palette.text, fontSize: 18 },
         tabBarActiveTintColor: palette.primary,
         tabBarInactiveTintColor: palette.muted,
-        tabBarLabelPosition: showTabLabels ? 'beside-icon' : 'below-icon',
-        tabBarShowLabel: showTabLabels,
+        tabBarLabelPosition: 'below-icon',
+        tabBarShowLabel: true,
         tabBarStyle: {
           borderTopWidth: 1,
           borderTopColor: palette.border,
@@ -77,38 +74,15 @@ const MainTabs = () => {
             return <Feather name="activity" color={color} size={size} />;
           }
 
-          if (route.name === 'Users') {
-            return <Feather name="users" color={color} size={size} />;
-          }
-
-          if (route.name === 'Apartments') {
-            return <Feather name="home" color={color} size={size} />;
-          }
-
-          return <Feather name="user" color={color} size={size} />;
+          return <Feather name="settings" color={color} size={size} />;
         },
       })}
     >
       <Tab.Screen name="Unlock" component={UnlockScreen} options={{ headerShown: false }} />
       <Tab.Screen name="Activity" component={ActivityScreen} options={{ headerShown: false }} />
       <Tab.Screen
-        name="Users"
+        name="Settings"
         component={SettingsScreen}
-        initialParams={{ tab: 'users', hideTabSwitcher: true }}
-        options={{ headerShown: false }}
-      />
-      {user?.role === 'admin' ? (
-        <Tab.Screen
-          name="Apartments"
-          component={SettingsScreen}
-          initialParams={{ tab: 'apartments', hideTabSwitcher: true }}
-          options={{ headerShown: false, tabBarLabel: 'Apts' }}
-        />
-      ) : null}
-      <Tab.Screen
-        name="Profile"
-        component={SettingsScreen}
-        initialParams={{ tab: 'profile', hideTabSwitcher: true }}
         options={{ headerShown: false }}
       />
     </Tab.Navigator>

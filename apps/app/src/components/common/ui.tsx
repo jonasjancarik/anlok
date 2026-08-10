@@ -61,6 +61,8 @@ interface ButtonProps {
   size?: 'default' | 'small' | 'icon';
   style?: StyleProp<ViewStyle>;
   icon?: React.ReactNode;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 }
 
 export const Screen = ({ children, noPadding = false }: { children: React.ReactNode; noPadding?: boolean }) => {
@@ -73,7 +75,12 @@ export const Screen = ({ children, noPadding = false }: { children: React.ReactN
 };
 
 export const PageScroll = ({ children }: { children: React.ReactNode }) => (
-  <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+  <ScrollView
+    contentContainerStyle={styles.scrollContent}
+    keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+    keyboardShouldPersistTaps="handled"
+    showsVerticalScrollIndicator={false}
+  >
     {children}
   </ScrollView>
 );
@@ -100,7 +107,12 @@ export const Banner = ({
     type === 'error' ? '#E5B7AF' : type === 'success' ? '#BDD8CA' : '#DDCDB4';
 
   return (
-    <View style={[styles.banner, { backgroundColor: background, borderColor, borderWidth: 1 }]}>
+    <View
+      accessibilityLiveRegion={type === 'error' ? 'assertive' : 'polite'}
+      accessibilityRole={type === 'error' ? 'alert' : undefined}
+      accessible
+      style={[styles.banner, { backgroundColor: background, borderColor, borderWidth: 1 }]}
+    >
       <Text style={[styles.bannerText, { color }]}>{text}</Text>
     </View>
   );
@@ -127,6 +139,8 @@ export const Button = ({
   size = 'default',
   style,
   icon,
+  accessibilityLabel,
+  accessibilityHint,
 }: ButtonProps) => {
   const variantStyles = {
     primary: styles.buttonPrimary,
@@ -156,6 +170,10 @@ export const Button = ({
 
   return (
     <Pressable
+      accessibilityHint={accessibilityHint}
+      accessibilityLabel={accessibilityLabel || title || undefined}
+      accessibilityRole="button"
+      accessibilityState={{ busy: !!loading, disabled: !!disabled || !!loading }}
       onPress={onPress}
       disabled={disabled || loading}
       style={({ pressed }) => [
@@ -178,6 +196,44 @@ export const Button = ({
     </Pressable>
   );
 };
+
+export const ListState = ({
+  loading,
+  error,
+  emptyTitle,
+  emptyText,
+  onRetry,
+}: {
+  loading: boolean;
+  error: string;
+  emptyTitle: string;
+  emptyText: string;
+  onRetry: () => void;
+}) => (
+  <View
+    accessibilityLiveRegion={error ? 'assertive' : 'polite'}
+    accessibilityRole={error ? 'alert' : undefined}
+    style={styles.listState}
+  >
+    {loading ? (
+      <>
+        <ActivityIndicator color={palette.primary} />
+        <Text style={styles.listStateTitle}>Loading…</Text>
+      </>
+    ) : error ? (
+      <>
+        <Text style={[styles.listStateTitle, styles.listStateErrorTitle]}>Couldn’t load this list</Text>
+        <Text style={styles.listStateText}>{error}</Text>
+        <Button title="Try again" size="small" variant="secondary" onPress={onRetry} />
+      </>
+    ) : (
+      <>
+        <Text style={styles.listStateTitle}>{emptyTitle}</Text>
+        <Text style={styles.listStateText}>{emptyText}</Text>
+      </>
+    )}
+  </View>
+);
 
 export const Horizontal = ({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) => (
   <View style={[styles.horizontal, style]}>{children}</View>
@@ -288,14 +344,14 @@ export const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    minHeight: 36,
+    minHeight: 44,
   },
   buttonSizeIcon: {
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 8,
-    minHeight: 36,
-    minWidth: 36,
+    minHeight: 44,
+    minWidth: 44,
   },
   buttonPrimary: {
     backgroundColor: palette.primary,
@@ -356,6 +412,32 @@ export const styles = StyleSheet.create({
     height: 1,
     backgroundColor: palette.border,
     marginVertical: 8,
+  },
+  listState: {
+    alignItems: 'center',
+    backgroundColor: palette.field,
+    borderColor: palette.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+  },
+  listStateTitle: {
+    color: palette.text,
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  listStateErrorTitle: {
+    color: palette.danger,
+  },
+  listStateText: {
+    color: palette.muted,
+    fontSize: 13,
+    lineHeight: 19,
+    maxWidth: 340,
+    textAlign: 'center',
   },
   chip: {
     alignSelf: 'flex-start',

@@ -9,6 +9,7 @@ import {
   Divider,
   FieldLabel,
   Input,
+  ListState,
   SectionCard,
   SubtleText,
   palette,
@@ -17,9 +18,10 @@ import {
 interface RfidManagementProps {
   token: string;
   user: User;
+  canUseScanner: boolean;
 }
 
-export const RfidManagement = ({ token, user }: RfidManagementProps) => {
+export const RfidManagement = ({ token, user, canUseScanner }: RfidManagementProps) => {
   const [rfids, setRfids] = useState<RFID[]>([]);
   const [uuid, setUuid] = useState('');
   const [label, setLabel] = useState('');
@@ -119,18 +121,27 @@ export const RfidManagement = ({ token, user }: RfidManagementProps) => {
 
       <View style={{ gap: 6 }}>
         <FieldLabel>UUID</FieldLabel>
-        <Input value={uuid} onChangeText={setUuid} placeholder="Scanned RFID UUID" />
+        <Input
+          accessibilityLabel="RFID identifier"
+          autoCapitalize="characters"
+          autoCorrect={false}
+          value={uuid}
+          onChangeText={setUuid}
+          placeholder="Scanned RFID identifier"
+        />
       </View>
 
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-        <Button 
-          size="small" 
-          title="Read from Scanner" 
-          variant="secondary"
-          icon={<Feather name="wifi" size={14} color={palette.text} />}
-          onPress={readTag} 
-          loading={reading} 
-        />
+        {canUseScanner ? (
+          <Button
+            size="small"
+            title="Read from scanner"
+            variant="secondary"
+            icon={<Feather name="wifi" size={14} color={palette.text} />}
+            onPress={readTag}
+            loading={reading}
+          />
+        ) : null}
         <Button 
           size="small" 
           title="Add RFID" 
@@ -140,12 +151,25 @@ export const RfidManagement = ({ token, user }: RfidManagementProps) => {
         />
       </View>
 
-      {error ? <Banner type="error" text={error} /> : null}
+      {!canUseScanner ? (
+        <SubtleText>
+          Only a building administrator can use the shared reader. You can still enter the tag identifier manually.
+        </SubtleText>
+      ) : null}
+
+      {error && rfids.length > 0 ? <Banner type="error" text={error} /> : null}
       {success ? <Banner type="success" text={success} /> : null}
+      {reading ? <Banner type="info" text="Hold the RFID tag near the building reader. Scanning stops after 30 seconds." /> : null}
 
       <Divider />
       {rfids.length === 0 ? (
-        <SubtleText>{loading ? 'Loading RFIDs...' : 'No RFID tags registered.'}</SubtleText>
+        <ListState
+          loading={loading}
+          error={error}
+          emptyTitle="No RFID tags yet"
+          emptyText="Scan a fob or enter its identifier to add the first tag."
+          onRetry={() => void loadRfids()}
+        />
       ) : (
         <View style={{ gap: 0 }}>
           {rfids.map((item, index) => (
@@ -175,6 +199,7 @@ export const RfidManagement = ({ token, user }: RfidManagementProps) => {
               <Button 
                 size="icon" 
                 title="" 
+                accessibilityLabel={`Delete RFID tag ${item.label || item.last_four_digits}`}
                 variant="ghost" 
                 icon={<Feather name="trash-2" size={16} color={palette.danger} />} 
                 onPress={() => deleteRfid(item.id)} 

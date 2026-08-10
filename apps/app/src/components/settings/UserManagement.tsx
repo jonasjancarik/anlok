@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { api, apiErrorMessage, authHeaders } from '../../lib/api';
 import { Apartment, User } from '../../types/entities';
 import { Toast, ToastTone } from '../common/Toast';
-import { Banner, Button, Divider, PageScroll, Screen, SectionCard, SubtleText, palette } from '../common/ui';
+import { Banner, Button, Divider, ListState, PageScroll, Screen, SectionCard, SubtleText, palette } from '../common/ui';
 import { Feather } from '@expo/vector-icons';
 import { PinManagement } from './PinManagement';
 import { RfidManagement } from './RfidManagement';
@@ -22,6 +22,34 @@ type ToastState = { message: string; type: ToastTone } | null;
 
 const apartmentNumberForUser = (user: User) => user.apartment?.number ?? '';
 
+const roleColor = (role: User['role']) => {
+  if (role === 'admin') {
+    return {
+      backgroundColor: '#F8E8E4',
+      borderColor: '#E5B7AF',
+      textColor: palette.danger,
+    };
+  }
+
+  if (role === 'apartment_admin') {
+    return {
+      backgroundColor: palette.primarySoft,
+      borderColor: '#C7D8CE',
+      textColor: palette.primary,
+    };
+  }
+
+  return {
+    backgroundColor: '#E3F1EA',
+    borderColor: '#BDD8CA',
+    textColor: palette.success,
+  };
+};
+
+const roleLabel = (role: User['role']) => role === 'apartment_admin'
+  ? 'Apt admin'
+  : role.charAt(0).toUpperCase() + role.slice(1);
+
 export const UserManagement = ({
   token,
   currentUser,
@@ -34,6 +62,7 @@ export const UserManagement = ({
   const [modalType, setModalType] = useState<ModalType>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [updatingUserId, setUpdatingUserId] = useState<number | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -88,14 +117,9 @@ export const UserManagement = ({
   }, [token, currentUser.role, currentUser.apartment?.number]);
 
   useEffect(() => {
-    loadApartments();
-    loadUsers();
-  }, [loadApartments, loadUsers]);
-
-  useEffect(() => {
     if (isActive) {
-      loadApartments();
-      loadUsers();
+      void loadApartments();
+      void loadUsers();
     }
   }, [isActive, loadApartments, loadUsers]);
 
@@ -154,7 +178,12 @@ export const UserManagement = ({
   };
 
   const toggleUserActive = async (target: User) => {
+    if (updatingUserId !== null) {
+      return;
+    }
+
     setError('');
+    setUpdatingUserId(target.id);
 
     try {
       const response = await api.put<User>(
@@ -174,40 +203,20 @@ export const UserManagement = ({
       showToast(`User ${response.data.is_active ? 'activated' : 'deactivated'}.`);
     } catch (nextError) {
       showToast(apiErrorMessage(nextError, 'Failed to update user status.'), 'error');
+    } finally {
+      setUpdatingUserId(null);
     }
   };
 
-  const roleColor = (role: User['role']) => {
-    if (role === 'admin') {
-      return {
-        backgroundColor: '#F8E8E4',
-        borderColor: '#E5B7AF',
-        textColor: palette.danger,
-      };
-    }
-
-    if (role === 'apartment_admin') {
-      return {
-        backgroundColor: palette.primarySoft,
-        borderColor: '#C7D8CE',
-        textColor: palette.primary,
-      };
-    }
-
-    return {
-      backgroundColor: '#E3F1EA',
-      borderColor: '#BDD8CA',
-      textColor: palette.success,
-    };
-  };
-
-  const roleLabel = (role: User['role']) => {
-    if (role === 'apartment_admin') {
-      return 'Apt admin';
-    }
-
-    return role.charAt(0).toUpperCase() + role.slice(1);
-  };
+  const modalHeading = modalType === 'pins'
+    ? 'Door PINs'
+    : modalType === 'rfid'
+      ? 'RFID tags'
+      : modalType === 'schedule'
+        ? 'Guest schedule'
+        : selectedUser
+          ? 'Edit person'
+          : 'Add person';
 
   return (
     <SectionCard>
@@ -225,11 +234,17 @@ export const UserManagement = ({
         </View>
       </View>
 
-      {error ? <Banner type="error" text={error} /> : null}
+      {error && groupedUsers.length > 0 ? <Banner type="error" text={error} /> : null}
 
       <Divider />
       {groupedUsers.length === 0 ? (
-        <SubtleText>{loading ? 'Loading users...' : 'No users found.'}</SubtleText>
+        <ListState
+          loading={loading}
+          error={error}
+          emptyTitle="No people yet"
+          emptyText="Add a resident or guest to start managing building access."
+          onRetry={() => void loadUsers()}
+        />
       ) : (
         <View style={userStyles.groupList}>
           {groupedUsers.map(([apartmentNumber, apartmentUsers]) => (
@@ -266,7 +281,8 @@ export const UserManagement = ({
                         <Pressable
                           accessibilityLabel={item.is_active ? `Disable ${item.name}` : `Enable ${item.name}`}
                           accessibilityRole="button"
-                          disabled={currentUser.role === 'apartment_admin' && item.role === 'admin'}
+                          accessibilityState={{ busy: updatingUserId === item.id, disabled: updatingUserId !== null || (currentUser.role === 'apartment_admin' && item.role === 'admin') }}
+                          disabled={updatingUserId !== null || (currentUser.role === 'apartment_admin' && item.role === 'admin')}
                           onPress={() => toggleUserActive(item)}
                           style={({ pressed }) => [
                             userStyles.statusToggle,
@@ -274,7 +290,11 @@ export const UserManagement = ({
                             pressed ? { opacity: 0.72 } : null,
                           ]}
                         >
-                          <Feather name={item.is_active ? 'slash' : 'check'} size={14} color={item.is_active ? palette.danger : palette.success} />
+                          {updatingUserId === item.id ? (
+                            <ActivityIndicator size="small" color={palette.primary} />
+                          ) : (
+                            <Feather name={item.is_active ? 'slash' : 'check'} size={16} color={item.is_active ? palette.danger : palette.success} />
+                          )}
                         </Pressable>
                       </View>
                     </View>
@@ -305,14 +325,20 @@ export const UserManagement = ({
       <Modal visible={modalType !== null} animationType="slide" onRequestClose={closeModal}>
         <Screen>
           <PageScroll>
-            <Button
-              title=""
-              icon={<Feather name="x" size={24} color={palette.muted} />}
-              variant="ghost"
-              size="icon"
-              onPress={closeModal}
-              style={{ alignSelf: 'flex-start', marginBottom: 8, marginLeft: -8 }}
-            />
+            <View style={userStyles.modalHeader}>
+              <View style={userStyles.modalHeadingCopy}>
+                <Text style={userStyles.modalEyebrow}>{selectedUser?.name || 'People'}</Text>
+                <Text style={userStyles.modalTitle}>{modalHeading}</Text>
+              </View>
+              <Button
+                title=""
+                accessibilityLabel={`Close ${modalHeading}`}
+                icon={<Feather name="x" size={24} color={palette.muted} />}
+                variant="ghost"
+                size="icon"
+                onPress={closeModal}
+              />
+            </View>
 
             {modalType === 'user' ? (
               <UserForm
@@ -329,7 +355,11 @@ export const UserManagement = ({
             ) : null}
 
             {modalType === 'rfid' && selectedUser ? (
-              <RfidManagement token={token} user={selectedUser} />
+              <RfidManagement
+                token={token}
+                user={selectedUser}
+                canUseScanner={currentUser.role === 'admin'}
+              />
             ) : null}
 
             {modalType === 'schedule' && selectedUser ? (
@@ -452,9 +482,9 @@ const userStyles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 8,
     borderWidth: 1,
-    height: 28,
+    height: 44,
     justifyContent: 'center',
-    width: 32,
+    width: 44,
   },
   statusToggleDanger: {
     backgroundColor: '#FCF2EE',
@@ -470,8 +500,32 @@ const userStyles = StyleSheet.create({
     gap: 6,
   },
   actionButton: {
-    minHeight: 32,
+    minHeight: 44,
     paddingHorizontal: 10,
     paddingVertical: 7,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  modalHeadingCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  modalEyebrow: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+  },
+  modalTitle: {
+    color: palette.text,
+    fontSize: 26,
+    fontWeight: '900',
+    marginTop: 2,
   },
 });

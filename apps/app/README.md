@@ -37,6 +37,7 @@ API URL notes:
 
 Server URL behavior:
 - On native, the user enters the server URL on first launch before login.
+- The native setup screen checks the server's `/health` endpoint before saving the URL.
 - On native, the URL is stored locally in `AsyncStorage`, and `EXPO_PUBLIC_API_URL` only pre-fills the onboarding field.
 - On web, users cannot change the server URL. The hosted app uses `EXPO_PUBLIC_API_URL`.
 
@@ -110,15 +111,16 @@ npm run android:release:upload -- v1.0.0
 
 ## Feature Parity
 
+- Three primary tabs on phones: Unlock, Activity, and Settings. User and apartment management live inside Settings.
 - Passwordless login via magic link (`/auth/magic-links`, `/auth/tokens`)
-- Unlock door (`/doors/unlock`)
+- Unlock door (`/doors/unlock`) with an explicit request/success/failure lifecycle; deep links require confirmation before sending a command
 - Settings tabs: profile, users, apartments
 - User management: create/edit/delete/toggle active
 - PIN management
 - RFID management (+ reader endpoint)
 - Guest schedule management (recurring + one-time)
 - API key management (admin)
-- Door activity history
+- Door activity history with granted/denied filters, focus refresh, and pull-to-refresh
 - Push notification registration for access events
 
 ## Notes

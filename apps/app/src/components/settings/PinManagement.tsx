@@ -13,6 +13,7 @@ import {
   Divider,
   FieldLabel,
   Input,
+  ListState,
   SectionCard,
   SubtleText,
   palette,
@@ -213,10 +214,12 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
         <View style={{ gap: 6 }}>
           <FieldLabel>PIN</FieldLabel>
           <Input
+            accessibilityLabel={`${REQUIRED_PIN_LENGTH}-digit door PIN`}
             keyboardType="number-pad"
+            maxLength={REQUIRED_PIN_LENGTH}
             secureTextEntry
             value={pin}
-            onChangeText={setPin}
+            onChangeText={(value) => setPin(value.replace(/\D/g, ''))}
             placeholder={`Enter ${REQUIRED_PIN_LENGTH}-digit PIN`}
           />
           {pinFeedback ? <Banner type="info" text={pinFeedback} /> : null}
@@ -235,12 +238,18 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
       />
 
       {generatedPin ? <Banner type="success" text={`Generated PIN: ${generatedPin}`} /> : null}
-      {error ? <Banner type="error" text={error} /> : null}
+      {error && pins.length > 0 ? <Banner type="error" text={error} /> : null}
       {success && !generatedPin ? <Banner type="success" text={success} /> : null}
 
       <Divider />
       {pins.length === 0 ? (
-        <SubtleText>{loading ? 'Loading PINs...' : 'No PINs created yet.'}</SubtleText>
+        <ListState
+          loading={loading}
+          error={error}
+          emptyTitle="No PINs yet"
+          emptyText="Add a labeled PIN so you can identify it later without revealing the code."
+          onRetry={() => void loadPins()}
+        />
       ) : (
         <View style={{ gap: 0 }}>
           {pins.map((item, index) => (
@@ -268,6 +277,7 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
               <Button 
                 size="icon" 
                 title="" 
+                accessibilityLabel={`Delete PIN ${item.label || item.id}`}
                 variant="ghost" 
                 icon={<Feather name="trash-2" size={16} color={palette.danger} />} 
                 onPress={() => deletePin(item.id)} 
