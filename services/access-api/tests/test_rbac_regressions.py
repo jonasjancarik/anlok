@@ -9,7 +9,15 @@ from fastapi import HTTPException
 import src.utils as utils
 from src import access_control
 from src.api.exceptions import APIException
-from src.api.models import ApartmentResponse, PINCreate, RFIDCreate, User, UserUpdate
+from src.api.models import (
+    ApartmentResponse,
+    OneTimeAccessCreate,
+    PINCreate,
+    RFIDCreate,
+    RecurringScheduleCreate,
+    User,
+    UserUpdate,
+)
 from src.api.permissions import Permission, require_permission
 from src.api import pin_policy
 from src.api.routes import doors as doors_routes
@@ -72,6 +80,27 @@ class RBACRegressionTests(unittest.TestCase):
 
         self.assertEqual(exc.exception.status_code, 403)
         self.assertIn("cannot change their role", exc.exception.detail.lower())
+
+    def test_get_user_returns_complete_mobile_user_shape(self):
+        target_user = SimpleNamespace(
+            id=7,
+            name="Resident",
+            email="resident@example.com",
+            role="user",
+            apartment_id=2,
+            apartment=SimpleNamespace(id=2, number="2B", description="Second floor"),
+            is_active=False,
+        )
+
+        with patch("src.api.routes.users.db.get_user", return_value=target_user):
+            result = users_routes.get_user(
+                user_id=7,
+                current_user=make_user(1, "admin"),
+            )
+
+        self.assertEqual(result["apartment"]["number"], "2B")
+        self.assertFalse(result["is_active"])
+        self.assertNotIn("apartment_number", result)
 
     def test_list_user_pins_and_rfids_are_sanitized(self):
         current_user = make_user(1, "admin")
@@ -279,6 +308,74 @@ class RBACRegressionTests(unittest.TestCase):
         reset_pins.assert_not_called()
         self.assertNotIn("pin", result)
 
+    def test_invalid_recurring_schedule_does_not_reset_guest_pin(self):
+        current_user = make_user(1, "admin")
+        guest_user = SimpleNamespace(id=9, role="guest", apartment_id=1)
+        invalid_schedule = RecurringScheduleCreate.model_construct(
+            day_of_week=7,
+            start_time=datetime.time(9, 0),
+            end_time=datetime.time(17, 0),
+        )
+
+        with patch("src.api.routes.guests.db.get_user", return_value=guest_user):
+            with patch(
+                "src.api.routes.guests.pin_policy.reset_user_pins_for_scheduled_access"
+            ) as reset_pins, patch(
+                "src.api.routes.guests.db.add_recurring_schedule"
+            ) as add_schedule:
+                with self.assertRaises(APIException) as exc:
+                    guests_routes.create_recurring_schedule(
+                        user_id=9,
+                        schedule=invalid_schedule,
+                        current_user=current_user,
+                    )
+
+        self.assertEqual(exc.exception.status_code, 400)
+        reset_pins.assert_not_called()
+        add_schedule.assert_not_called()
+
+    def test_invalid_one_time_schedule_does_not_reset_guest_pin(self):
+        current_user = make_user(1, "admin")
+        guest_user = SimpleNamespace(id=9, role="guest", apartment_id=1)
+        invalid_access = OneTimeAccessCreate.model_construct(
+            start_date=datetime.date(2026, 8, 10),
+            end_date=datetime.date(2026, 8, 10),
+            start_time=datetime.time(17, 0),
+            end_time=datetime.time(9, 0),
+        )
+
+        with patch("src.api.routes.guests.db.get_user", return_value=guest_user):
+            with patch(
+                "src.api.routes.guests.pin_policy.reset_user_pins_for_scheduled_access"
+            ) as reset_pins, patch(
+                "src.api.routes.guests.db.add_one_time_access"
+            ) as add_access:
+                with self.assertRaises(APIException) as exc:
+                    guests_routes.create_one_time_access(
+                        user_id=9,
+                        access=invalid_access,
+                        current_user=current_user,
+                    )
+
+        self.assertEqual(exc.exception.status_code, 400)
+        reset_pins.assert_not_called()
+        add_access.assert_not_called()
+
+    def test_schedule_models_reject_invalid_day_or_time_window(self):
+        with self.assertRaises(ValueError):
+            RecurringScheduleCreate(
+                day_of_week=7,
+                start_time=datetime.time(9, 0),
+                end_time=datetime.time(17, 0),
+            )
+        with self.assertRaises(ValueError):
+            OneTimeAccessCreate(
+                start_date=datetime.date(2026, 8, 10),
+                end_date=datetime.date(2026, 8, 10),
+                start_time=datetime.time(17, 0),
+                end_time=datetime.time(9, 0),
+            )
+
     def test_reset_user_pins_for_scheduled_access_deletes_and_generates_pin(self):
         saved_pin = SimpleNamespace(id=44)
 
@@ -388,6 +485,104 @@ class RBACRegressionTests(unittest.TestCase):
 
         self.assertEqual(result["rfid"].user_id, 10)
         self.assertEqual(result["rfid"].last_four_digits, "1234")
+
+    def test_rfid_read_requires_reader_control_permission(self):
+        with self.assertRaises(HTTPException) as exc:
+            asyncio.run(
+                rfids_routes.read_rfid(
+                    timeout=1,
+                    current_user=make_user(10, "user"),
+                )
+            )
+
+        self.assertEqual(exc.exception.status_code, 403)
+
+    def test_rfid_read_rejects_overlapping_scan(self):
+        current_user = make_user(1, "admin")
+
+        async def run_test():
+            scan_started = asyncio.Event()
+            release_scan = asyncio.Event()
+
+            async def slow_read(timeout):
+                scan_started.set()
+                await release_scan.wait()
+                return "tag"
+
+            with patch(
+                "src.api.routes.rfids.get_reader_status", return_value="stopped"
+            ), patch(
+                "src.api.routes.rfids.read_single_input", new=slow_read
+            ), patch("src.api.routes.rfids.start_reader") as start_reader:
+                first_scan = asyncio.create_task(
+                    rfids_routes.read_rfid(timeout=30, current_user=current_user)
+                )
+                await scan_started.wait()
+                try:
+                    with self.assertRaises(APIException) as exc:
+                        await rfids_routes.read_rfid(
+                            timeout=30, current_user=current_user
+                        )
+                    self.assertEqual(exc.exception.status_code, 409)
+                finally:
+                    release_scan.set()
+
+                result = await first_scan
+
+            self.assertEqual(result, {"uuid": "tag"})
+            start_reader.assert_not_called()
+
+        asyncio.run(run_test())
+
+    def test_rfid_read_does_not_start_a_reader_it_did_not_stop(self):
+        current_user = make_user(1, "admin")
+        with patch(
+            "src.api.routes.rfids.get_reader_status", return_value="stopped"
+        ), patch(
+            "src.api.routes.rfids.read_single_input", new=AsyncMock(return_value="tag")
+        ), patch("src.api.routes.rfids.start_reader") as start_reader:
+            result = asyncio.run(
+                rfids_routes.read_rfid(timeout=30, current_user=current_user)
+            )
+
+        self.assertEqual(result, {"uuid": "tag"})
+        start_reader.assert_not_called()
+
+    def test_rfid_read_timeout_returns_404_and_restarts_reader(self):
+        current_user = make_user(1, "admin")
+        with patch(
+            "src.api.routes.rfids.get_reader_status", return_value="running"
+        ), patch(
+            "src.api.routes.rfids.stop_reader", new=AsyncMock()
+        ) as stop_reader, patch(
+            "src.api.routes.rfids.read_single_input", new=AsyncMock(return_value=None)
+        ), patch("src.api.routes.rfids.start_reader") as start_reader:
+            with self.assertRaises(APIException) as exc:
+                asyncio.run(
+                    rfids_routes.read_rfid(timeout=30, current_user=current_user)
+                )
+
+        self.assertEqual(exc.exception.status_code, 404)
+        stop_reader.assert_awaited_once()
+        start_reader.assert_called_once()
+
+    def test_rfid_read_failure_restarts_reader_when_request_stopped_it(self):
+        current_user = make_user(1, "admin")
+        with patch(
+            "src.api.routes.rfids.get_reader_status", return_value="running"
+        ), patch(
+            "src.api.routes.rfids.stop_reader", new=AsyncMock()
+        ), patch(
+            "src.api.routes.rfids.read_single_input",
+            new=AsyncMock(side_effect=RuntimeError("scanner disconnected")),
+        ), patch("src.api.routes.rfids.start_reader") as start_reader:
+            with self.assertRaises(APIException) as exc:
+                asyncio.run(
+                    rfids_routes.read_rfid(timeout=30, current_user=current_user)
+                )
+
+        self.assertEqual(exc.exception.status_code, 500)
+        start_reader.assert_called_once()
 
     def test_remote_unlock_records_actor_access_event(self):
         current_user = SimpleNamespace(

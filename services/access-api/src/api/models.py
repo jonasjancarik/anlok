@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from typing import Optional, List, Any, Dict
 from datetime import date, time
 
@@ -129,9 +129,15 @@ class UserUpdate(BaseModel):
 
 
 class RecurringScheduleCreate(BaseModel):
-    day_of_week: int
+    day_of_week: int = Field(ge=0, le=6)
     start_time: time
     end_time: time
+
+    @model_validator(mode="after")
+    def end_time_must_be_after_start_time(self):
+        if self.end_time <= self.start_time:
+            raise ValueError("End time must be after start time")
+        return self
 
 
 class OneTimeAccessCreate(BaseModel):
@@ -139,6 +145,12 @@ class OneTimeAccessCreate(BaseModel):
     end_date: date
     start_time: time
     end_time: time
+
+    @model_validator(mode="after")
+    def end_time_must_be_after_start_time(self):
+        if self.end_time <= self.start_time:
+            raise ValueError("End time must be after start time")
+        return self
 
 
 class RecurringScheduleResponse(BaseModel):

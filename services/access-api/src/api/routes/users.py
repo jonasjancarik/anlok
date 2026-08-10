@@ -100,13 +100,7 @@ def get_user(user_id: int, current_user: User = Depends(get_current_user)):
     if not PermissionChecker.can_access_user_resource(current_user, user_id, user):
         raise APIException(status_code=403, detail="Cannot access this user")
 
-    return UserResponse(
-        id=user.id,
-        name=user.name,
-        email=user.email,
-        role=user.role,
-        apartment_number=user.apartment.number,
-    )
+    return build_user_response(user)
 
 
 @router.put("/{user_id}", status_code=status.HTTP_200_OK, response_model=UserResponse)

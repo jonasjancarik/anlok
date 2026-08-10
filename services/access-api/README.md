@@ -8,6 +8,15 @@ can also register native APNs or FCM push tokens through `/notification-devices`
 the backend can send access-event notifications directly through Apple and Google
 without exposing notification credentials to clients.
 
+RFID enrollment through `/rfids/read` requires the `READER_CONTROL` permission,
+accepts a timeout from 1 to 30 seconds, and restores the shared reader after a
+successful scan, timeout, or scanner failure when the request stopped it. The API
+returns `409 Conflict` if another enrollment scan is already using the reader.
+
+Guest schedule windows must end after they start; overnight access should be
+represented by two schedules. Invalid weekdays or time windows are rejected
+before the API replaces a guest's PIN for scheduled access.
+
 Client apps in this monorepo:
 
 - web: `../../apps/web`

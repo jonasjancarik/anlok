@@ -33,6 +33,13 @@ def _schedule_pin_response(user_id):
     }
 
 
+def _validate_schedule_window(start_time, end_time, day_of_week=None):
+    if day_of_week is not None and not 0 <= day_of_week <= 6:
+        raise APIException(status_code=400, detail="Day of week must be between 0 and 6")
+    if end_time <= start_time:
+        raise APIException(status_code=400, detail="End time must be after start time")
+
+
 @router.post("/{user_id}/recurring-schedules", status_code=status.HTTP_201_CREATED)
 @require_permission(Permission.GUESTS_MANAGE_SCHEDULES)
 def create_recurring_schedule(
@@ -53,6 +60,9 @@ def create_recurring_schedule(
             detail="Cannot modify schedule for guests from other apartments",
         )
 
+    _validate_schedule_window(
+        schedule.start_time, schedule.end_time, day_of_week=schedule.day_of_week
+    )
     pin_response = _schedule_pin_response(user_id)
     new_schedule = db.add_recurring_schedule(
         user_id, schedule.day_of_week, schedule.start_time, schedule.end_time
@@ -90,6 +100,7 @@ def create_one_time_access(
             detail="Start date must be before or equal to end date",
         )
 
+    _validate_schedule_window(access.start_time, access.end_time)
     pin_response = _schedule_pin_response(user_id)
     new_access = db.add_one_time_access(
         user_id,

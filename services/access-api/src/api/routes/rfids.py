@@ -1,4 +1,6 @@
-from fastapi import APIRouter, status, Response, Depends
+import asyncio
+
+from fastapi import APIRouter, status, Response, Depends, Query
 from ..models import RFIDCreate, RFIDResponse, User
 from ..exceptions import APIException
 from ..utils import build_user_response
@@ -16,6 +18,7 @@ from ...reader.reader import (
 
 
 router = APIRouter(prefix="/rfids", tags=["rfids"])
+_rfid_read_lock = asyncio.Lock()
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -67,28 +70,44 @@ def create_rfid(
 
 
 @router.get("/read", status_code=status.HTTP_200_OK)
-async def read_rfid(timeout: int, user: User = Depends(get_current_user)):
+@require_any_permission(Permission.READER_CONTROL)
+async def read_rfid(
+    timeout: int = Query(..., ge=1, le=30),
+    current_user: User = Depends(get_current_user),
+):
     logger.info(f"Attempting to read RFID with timeout: {timeout}")
-    try:
-        # stop reader if it's running
-        if get_reader_status() == "running":
-            logger.info("Stopping reader before reading RFID")
-            await stop_reader()
-        rfid_uuid = await read_single_input(timeout=min(timeout, 30))
-        if not rfid_uuid:
-            logger.warning("No RFID scanned within timeout period")
-            return APIException(
-                status_code=404, detail="No RFID scanned within timeout period"
+    if _rfid_read_lock.locked():
+        raise APIException(
+            status_code=409, detail="Another RFID scan is already in progress"
+        )
+
+    async with _rfid_read_lock:
+        stopped_reader = False
+        try:
+            if get_reader_status() == "running":
+                logger.info("Stopping reader before reading RFID")
+                await stop_reader()
+                stopped_reader = True
+
+            rfid_uuid = await read_single_input(timeout=timeout)
+            if not rfid_uuid:
+                logger.warning("No RFID scanned within timeout period")
+                raise APIException(
+                    status_code=404, detail="No RFID scanned within timeout period"
+                )
+            logger.info(f"Successfully read RFID: {rfid_uuid}")
+            return {"uuid": rfid_uuid}
+        except APIException:
+            raise
+        except Exception as e:
+            logger.error(f"Error reading RFID: {str(e)}")
+            raise APIException(
+                status_code=500, detail=f"Error reading RFID: {str(e)}"
             )
-        logger.info(f"Successfully read RFID: {rfid_uuid}")
-        # start reader if it was stopped
-        if get_reader_status() == "stopped":
-            logger.info("Starting reader after reading RFID")
-            start_reader()
-        return {"uuid": rfid_uuid}
-    except Exception as e:
-        logger.error(f"Error reading RFID: {str(e)}")
-        raise APIException(status_code=500, detail=f"Error reading RFID: {str(e)}")
+        finally:
+            if stopped_reader:
+                logger.info("Restarting reader after RFID scan")
+                start_reader()
 
 
 @router.delete("/{rfid_id}", status_code=status.HTTP_204_NO_CONTENT)
