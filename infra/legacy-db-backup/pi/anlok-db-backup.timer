@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the Anlok legacy database backup every night
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Europe/Prague
+RandomizedDelaySec=15min
+Persistent=true
+AccuracySec=1min
+Unit=anlok-db-backup.service
+
+[Install]
+WantedBy=timers.target

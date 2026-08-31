@@ -1,0 +1,25 @@
+[Unit]
+Description=Back up the Anlok legacy SQLite database to Cloudflare R2
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=pi
+Group=pi
+UMask=0077
+Environment=BACKUP_URL=https://anlok-legacy-db-backup-upload.svjmelnicka.workers.dev/backup
+LoadCredential=backup-token:/etc/anlok-db-backup.token
+RuntimeDirectory=anlok-db-backup
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/flock --nonblock /run/anlok-db-backup/backup.lock /usr/local/sbin/anlok-db-backup.py
+TimeoutStartSec=15min
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectControlGroups=yes
+ProtectHome=read-only
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_INET AF_INET6

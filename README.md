@@ -7,6 +7,7 @@ Monorepo for the door access system.
 - `apps/web`: Next.js web client
 - `apps/app`: Expo / React Native client
 - `services/access-api`: Python / FastAPI access-control backend for Raspberry Pi hardware
+- `infra/legacy-db-backup`: private R2 backup pipeline for the legacy Raspberry Pi database
 
 ## Development
 

@@ -1,0 +1,5 @@
+.wrangler/
+__pycache__/
+node_modules/
+worker-configuration.d.ts
+worker-startup.cpuprofile

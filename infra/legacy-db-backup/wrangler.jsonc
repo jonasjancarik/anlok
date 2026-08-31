@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "anlok-legacy-db-backup-upload",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-08-31",
+  "account_id": "17aa9251c5fe4c0ee4e806e2e82e59b9",
+  "workers_dev": true,
+  "r2_buckets": [
+    {
+      "binding": "BACKUPS",
+      "bucket_name": "anlok-legacy-db-backups",
+      "jurisdiction": "eu"
+    }
+  ]
+}
