@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F4F0E8"
+      "backgroundColor": "#C3D9DD"
     },
     "ios": {
       "supportsTablet": true
@@ -20,8 +20,7 @@
       "package": "com.anonymous.anlok",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "monochromeImage": "./assets/monochrome-icon.png",
-        "backgroundColor": "#176B54"
+        "backgroundColor": "#C3D9DD"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
