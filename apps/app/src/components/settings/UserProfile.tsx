@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
+import { useServerConfig } from '../../contexts/ServerConfigContext';
 import {
   registerForAccessNotifications,
   sendAccessNotificationTest,
 } from '../../lib/notifications';
 import { User } from '../../types/entities';
-import { Button, SectionCard, styles as uiStyles } from '../common/ui';
+import { Button, SectionCard, palette, styles as uiStyles } from '../common/ui';
 import { ApiKeyManagement } from './ApiKeyManagement';
 import { UserForm } from './UserForm';
 
@@ -17,7 +19,9 @@ interface UserProfileProps {
 }
 
 export const UserProfile = ({ token, user }: UserProfileProps) => {
+  const navigation = useNavigation<any>();
   const { logout, updateUser } = useAuth();
+  const { apiUrl } = useServerConfig();
   const [notificationStatus, setNotificationStatus] = useState(
     'Manage door activity notifications for this device.'
   );
@@ -52,6 +56,22 @@ export const UserProfile = ({ token, user }: UserProfileProps) => {
         <ApiKeyManagement token={token} userId={user.id} />
       ) : null}
 
+      <SectionCard title="Server">
+        <Text style={profileStyles.label}>Current server</Text>
+        <Text selectable style={profileStyles.serverUrl}>{apiUrl}</Text>
+        <Text style={uiStyles.subtleText}>
+          Anlok sends door controls and account requests to this address.
+        </Text>
+        {Platform.OS !== 'web' ? (
+          <Button
+            title="Change server"
+            variant="secondary"
+            icon={<Feather name="server" size={16} color={palette.text} />}
+            onPress={() => navigation.getParent()?.navigate('ServerSetup')}
+          />
+        ) : null}
+      </SectionCard>
+
       <SectionCard title="Notifications">
         <Text style={uiStyles.subtleText}>{notificationStatus}</Text>
         <Button
@@ -83,3 +103,19 @@ export const UserProfile = ({ token, user }: UserProfileProps) => {
     </View>
   );
 };
+
+const profileStyles = StyleSheet.create({
+  label: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  serverUrl: {
+    color: palette.text,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+});

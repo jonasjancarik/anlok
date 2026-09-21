@@ -146,7 +146,12 @@ export const AppNavigator = () => {
         ) : !apiUrl ? (
           <Stack.Screen name="ServerSetup" component={ServerSetupScreen} />
         ) : user ? (
-          <Stack.Screen name="Main" component={MainTabs} />
+          <>
+            <Stack.Screen name="Main" component={MainTabs} />
+            {Platform.OS !== 'web' ? (
+              <Stack.Screen name="ServerSetup" component={ServerSetupScreen} />
+            ) : null}
+          </>
         ) : (
           <>
             <Stack.Screen name="Login" component={LoginScreen} />

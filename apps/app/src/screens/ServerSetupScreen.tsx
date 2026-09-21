@@ -2,11 +2,15 @@ import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import axios from 'axios';
 import { Feather } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../contexts/AuthContext';
 import { useServerConfig } from '../contexts/ServerConfigContext';
 import { Banner, Button, FieldLabel, Input, PageScroll, Screen, SectionCard, styles as uiStyles, palette } from '../components/common/ui';
 import { isSupportedApiUrl, normalizeApiUrl } from '../lib/api';
 
 export const ServerSetupScreen = () => {
+  const navigation = useNavigation<any>();
+  const { user, logout } = useAuth();
   const { apiUrl, suggestedApiUrl, saveApiUrl } = useServerConfig();
   const [draftUrl, setDraftUrl] = useState(() => apiUrl || suggestedApiUrl);
   const [saving, setSaving] = useState(false);
@@ -57,6 +61,15 @@ export const ServerSetupScreen = () => {
 
       setConnectionStatus(`Connected to ${normalizedUrl}.`);
       await saveApiUrl(draftUrl);
+      const serverChanged = normalizedUrl !== apiUrl;
+
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      }
+
+      if (serverChanged && user) {
+        await logout();
+      }
     } catch (nextError) {
       if (axios.isAxiosError(nextError) && nextError.code === 'ECONNABORTED') {
         setError('The server took too long to respond. Check the address and your connection, then try again.');
@@ -84,8 +97,15 @@ export const ServerSetupScreen = () => {
 
           <SectionCard title="Connection">
             <Text style={[uiStyles.subtleText, screenStyles.helper]}>
-              Enter the Anlok server URL before login.
+              Enter the address of the Anlok server this device should use.
             </Text>
+
+            {user ? (
+              <Banner
+                type="info"
+                text="Changing to another server will sign you out on this device."
+              />
+            ) : null}
 
             <View style={{ gap: 8, marginBottom: 8 }}>
               <FieldLabel>Server URL</FieldLabel>

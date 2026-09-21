@@ -39,6 +39,7 @@ Server URL behavior:
 - On native, the user enters the server URL on first launch before login.
 - The native setup screen checks the server's `/health` endpoint before saving the URL.
 - On native, the URL is stored locally in `AsyncStorage`, and `EXPO_PUBLIC_API_URL` only pre-fills the onboarding field.
+- The Profile tab shows the active server URL and lets native users change it.
 - On web, users cannot change the server URL. The hosted app uses `EXPO_PUBLIC_API_URL`.
 
 3. Run app:
