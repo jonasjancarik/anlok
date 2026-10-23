@@ -31,7 +31,7 @@ export const LoginScreen = () => {
 
   const exchangeCode = useCallback(
     async (code: string) => {
-      const sanitizedCode = code.trim();
+      const sanitizedCode = code.trim().toUpperCase();
       if (!sanitizedCode || !email.trim()) {
         return;
       }
@@ -53,7 +53,7 @@ export const LoginScreen = () => {
 
         setError('Login failed.');
       } catch (nextError) {
-        setError(apiErrorMessage(nextError, 'Invalid or expired login code.'));
+        setError(apiErrorMessage(nextError, 'That code didn’t work. It may have expired, so request a new one.'));
       } finally {
         setExchanging(false);
       }
@@ -125,13 +125,13 @@ export const LoginScreen = () => {
 
       if (response.status === 202) {
         setEmailSent(true);
-        setStatus('Login code sent. Check email and paste code.');
+        setStatus(`Check your inbox. We sent a sign-in code to ${email.trim()}.`);
         return;
       }
 
-      setError('Could not send login code.');
+      setError('Couldn’t send a sign-in code. Try again.');
     } catch (nextError) {
-      setError(apiErrorMessage(nextError, 'Failed to send login code.'));
+      setError(apiErrorMessage(nextError, 'Couldn’t send a sign-in code. Try again.'));
     } finally {
       setSending(false);
     }
@@ -168,18 +168,16 @@ export const LoginScreen = () => {
           <View style={screenStyles.shell}>
             <View style={screenStyles.hero}>
               <View style={screenStyles.mark}>
-                <Feather name="lock" size={26} color={palette.primary} />
+                <Feather name="lock" size={28} color="#fff" />
               </View>
               <Text style={screenStyles.title}>{APP_TITLE}</Text>
-              <Text style={screenStyles.subtitle}>Sign in to manage apartment access.</Text>
+              <Text style={screenStyles.subtitle}>Open the door and manage access from your phone.</Text>
             </View>
 
-            <SectionCard title="Passwordless login">
-              <View style={screenStyles.intro}>
-                <Text style={screenStyles.introText}>
-                  We will send a short login code to your email. No password required.
-                </Text>
-              </View>
+            <SectionCard
+              title={emailSent ? 'Enter your code' : 'Sign in'}
+              description={emailSent ? undefined : 'We’ll email you a short sign-in code. No password needed.'}
+            >
 
               <View style={{ gap: 6 }}>
                 <FieldLabel>Email</FieldLabel>
@@ -190,7 +188,13 @@ export const LoginScreen = () => {
                   autoCorrect={false}
                   keyboardType="email-address"
                   nativeID="login-email"
+                  editable={!emailSent}
                   onChangeText={setEmail}
+                  onSubmitEditing={() => {
+                    if (!emailSent && email.trim()) void sendLoginCode();
+                  }}
+                  returnKeyType="send"
+                  style={emailSent ? { color: palette.muted } : undefined}
                   placeholder="name@example.com"
                   value={email}
                 />
@@ -198,27 +202,32 @@ export const LoginScreen = () => {
 
               {!emailSent ? (
                 <Button
-                  title="Send login code"
+                  title="Email me a code"
                   onPress={sendLoginCode}
                   loading={sending}
                   disabled={!email.trim()}
                   icon={<Feather name="send" size={18} color="#fff" />}
-                  style={{ marginTop: 8 }}
                 />
               ) : (
                 <>
-                  <View style={{ gap: 6, marginTop: 8 }}>
-                    <FieldLabel>Login Code</FieldLabel>
+                  {status ? <Banner type="success" text={status} /> : null}
+                  <View style={{ gap: 6 }}>
+                    <FieldLabel>Sign-in code</FieldLabel>
                     <Input
-                      accessibilityLabel="Login code"
-                      autoCapitalize="none"
+                      accessibilityLabel="Sign-in code"
+                      autoCapitalize="characters"
                       autoComplete="one-time-code"
                       autoCorrect={false}
-                      keyboardType="number-pad"
+                      autoFocus
+                      keyboardType={Platform.OS === 'ios' ? 'ascii-capable' : 'visible-password'}
                       maxLength={12}
                       nativeID="login-code"
                       onChangeText={setLoginCode}
-                      placeholder="Code received by email"
+                      onSubmitEditing={() => {
+                        if (hasCode) void exchangeCode(loginCode);
+                      }}
+                      returnKeyType="go"
+                      placeholder="Code from the email"
                       value={loginCode}
                     />
                   </View>
@@ -228,7 +237,7 @@ export const LoginScreen = () => {
                     loading={exchanging}
                     disabled={!email.trim() || !hasCode}
                     icon={<Feather name="log-in" size={18} color="#fff" />}
-                    style={{ marginTop: 8 }}
+                    style={{ marginTop: 4 }}
                   />
                   {showGmailShortcut ? (
                     <Button
@@ -247,12 +256,11 @@ export const LoginScreen = () => {
                 </>
               )}
 
-              {status ? <Banner type="success" text={status} /> : null}
               {error ? <Banner type="error" text={error} /> : null}
 
               {emailSent ? (
-                <Text style={[uiStyles.subtleText, { textAlign: 'center', marginTop: 8 }]}>
-                  Didn&apos;t receive the email? Check spam or use a different email address.
+                <Text style={[uiStyles.subtleText, { textAlign: 'center' }]}>
+                  No email? Check your spam folder, or use a different address.
                 </Text>
               ) : null}
             </SectionCard>
@@ -290,14 +298,12 @@ const screenStyles = StyleSheet.create({
   },
   mark: {
     alignItems: 'center',
-    backgroundColor: palette.primarySoft,
-    borderColor: palette.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    height: 58,
+    backgroundColor: palette.primary,
+    borderRadius: 20,
+    height: 64,
     justifyContent: 'center',
     marginBottom: 8,
-    width: 58,
+    width: 64,
   },
   title: {
     color: palette.text,
@@ -309,19 +315,6 @@ const screenStyles = StyleSheet.create({
     color: palette.muted,
     fontSize: 15,
     fontWeight: '500',
-    lineHeight: 22,
-    textAlign: 'center',
-  },
-  intro: {
-    backgroundColor: palette.field,
-    borderColor: palette.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    padding: 14,
-  },
-  introText: {
-    color: palette.muted,
-    fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
   },

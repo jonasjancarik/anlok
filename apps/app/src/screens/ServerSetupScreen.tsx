@@ -89,10 +89,10 @@ export const ServerSetupScreen = () => {
         <View style={screenStyles.shell}>
           <View style={screenStyles.hero}>
             <View style={screenStyles.mark}>
-              <Feather name="server" size={30} color={palette.primary} />
+              <Feather name="server" size={28} color="#fff" />
             </View>
             <Text style={screenStyles.title}>Server setup</Text>
-            <Text style={screenStyles.subtitle}>Connect this device to your Anlok backend.</Text>
+            <Text style={screenStyles.subtitle}>Connect this device to your building&apos;s door server.</Text>
           </View>
 
           <SectionCard title="Connection">
@@ -161,10 +161,8 @@ const screenStyles = StyleSheet.create({
   },
   mark: {
     alignItems: 'center',
-    backgroundColor: palette.primarySoft,
-    borderColor: palette.border,
-    borderRadius: 8,
-    borderWidth: 1,
+    backgroundColor: palette.primary,
+    borderRadius: 20,
     height: 64,
     justifyContent: 'center',
     marginBottom: 8,

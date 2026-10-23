@@ -39,7 +39,7 @@ Server URL behavior:
 - On native, the user enters the server URL on first launch before login.
 - The native setup screen checks the server's `/health` endpoint before saving the URL.
 - On native, the URL is stored locally in `AsyncStorage`, and `EXPO_PUBLIC_API_URL` only pre-fills the onboarding field.
-- The Profile tab shows the active server URL and lets native users change it.
+- The Account tab in Settings shows the active server URL and lets native users change it.
 - On web, users cannot change the server URL. The hosted app uses `EXPO_PUBLIC_API_URL`.
 
 3. Run app:
@@ -76,8 +76,8 @@ new APNs/FCM token with the backend.
 After enabling notifications on a native build, backend delivery can be checked
 without opening the door by calling `POST /notification-devices/test` with the
 same user's API token. The response contains the APNs/FCM provider status for
-each registered device. The Profile screen also exposes this as a "Send test
-notification" action.
+each registered device. The Account tab also exposes this as a "Send a test
+" action.
 
 ## Android APK Releases
 
@@ -112,16 +112,16 @@ npm run android:release:upload -- v1.0.0
 
 ## Feature Parity
 
-- Three primary tabs on phones: Unlock, Activity, and Settings. User and apartment management live inside Settings.
+- Three primary tabs on phones: Unlock, Activity, and Settings. People and apartment management live inside Settings.
 - Passwordless login via magic link (`/auth/magic-links`, `/auth/tokens`)
 - Unlock door (`/doors/unlock`) with an explicit request/success/failure lifecycle; deep links require confirmation before sending a command
-- Settings tabs: profile, users, apartments
+- Settings tabs: Account, People, Apartments (apartments for building admins only)
 - User management: create/edit/delete/toggle active
 - PIN management
 - RFID management (+ reader endpoint)
 - Guest schedule management (recurring + one-time)
 - API key management (admin)
-- Door activity history with granted/denied filters, focus refresh, and pull-to-refresh
+- Door activity history grouped by day, with granted/denied filters, focus refresh, and pull-to-refresh. API timestamps without a timezone are treated as UTC.
 - Push notification registration for access events
 
 ## Notes
