@@ -1,17 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { api, apiErrorMessage, authHeaders } from '../../lib/api';
+import { roleDescription, roleLabel } from '../../lib/roles';
 import { Apartment, User } from '../../types/entities';
 import {
+  Avatar,
   Banner,
   Button,
   Chip,
   FieldLabel,
-  Horizontal,
   Input,
-  Row,
   SectionCard,
   SubtleText,
+  palette,
 } from '../common/ui';
 
 interface UserFormProps {
@@ -20,9 +22,10 @@ interface UserFormProps {
   targetUser: User | null;
   onSuccess: (updatedUser: User | null) => void;
   onCancel?: () => void;
+  variant?: 'manage' | 'self';
 }
 
-const roleOptions: User['role'][] = ['admin', 'apartment_admin', 'guest'];
+const roleOptions: User['role'][] = ['apartment_admin', 'guest', 'admin'];
 
 export const UserForm = ({
   token,
@@ -30,6 +33,7 @@ export const UserForm = ({
   targetUser,
   onSuccess,
   onCancel,
+  variant = 'manage',
 }: UserFormProps) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -41,8 +45,9 @@ export const UserForm = ({
   const [saving, setSaving] = useState(false);
 
   const isEditing = !!targetUser;
-  const canEditRole = currentUser.role === 'admin';
-  const canEditApartment = currentUser.role === 'admin';
+  const isSelf = variant === 'self';
+  const canEditRole = currentUser.role === 'admin' && !isSelf;
+  const canEditApartment = currentUser.role === 'admin' && !isSelf;
   const currentApartmentNumber = currentUser.apartment?.number ?? '';
   const isSelfDowngrade =
     currentUser.id === targetUser?.id && currentUser.role === 'admin' && role !== 'admin';
@@ -96,17 +101,17 @@ export const UserForm = ({
         response = await api.put<User>(`/users/${targetUser.id}`, payload, {
           headers: authHeaders(token),
         });
-        setStatus('User updated.');
+        setStatus(isSelf ? 'Your details are saved.' : 'Changes saved.');
       } else {
         response = await api.post<User>('/users', payload, {
           headers: authHeaders(token),
         });
-        setStatus('User created.');
+        setStatus('Person added.');
       }
 
       onSuccess(response.data);
     } catch (nextError) {
-      setError(apiErrorMessage(nextError, 'Failed to save user.'));
+      setError(apiErrorMessage(nextError, 'Couldn’t save these details. Try again.'));
     } finally {
       setSaving(false);
     }
@@ -119,12 +124,12 @@ export const UserForm = ({
     }
 
     Alert.alert(
-      'Warning: Role Downgrade',
-      'You are about to downgrade your own admin role. This cannot be reversed without another admin or direct database access.',
+      'Give up building admin rights?',
+      'You will lose access to building settings. Only another building admin can give them back.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Downgrade',
+          text: 'Change my role',
           style: 'destructive',
           onPress: () => {
             void performSave();
@@ -139,10 +144,10 @@ export const UserForm = ({
       return;
     }
 
-    Alert.alert('Delete user', `Delete ${targetUser.name}?`, [
+    Alert.alert(`Remove ${targetUser.name}?`, 'Their PINs, cards, and schedules stop working and are deleted. This can’t be undone.', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Delete',
+        text: 'Remove',
         style: 'destructive',
         onPress: async () => {
           setSaving(true);
@@ -152,10 +157,10 @@ export const UserForm = ({
             await api.delete(`/users/${targetUser.id}`, {
               headers: authHeaders(token),
             });
-            setStatus('User deleted.');
+            setStatus('Person removed.');
             onSuccess(null);
           } catch (nextError) {
-            setError(apiErrorMessage(nextError, 'Failed to delete user.'));
+            setError(apiErrorMessage(nextError, 'Couldn’t remove this person. Try again.'));
           } finally {
             setSaving(false);
           }
@@ -164,15 +169,31 @@ export const UserForm = ({
     ]);
   };
 
+  const roleChoices = roleOptions.includes(role) ? roleOptions : [...roleOptions, role];
+
   return (
-    <SectionCard title={isEditing ? `Edit: ${targetUser?.name}` : 'Add User'}>
+    <SectionCard title={isSelf ? undefined : isEditing ? 'Details' : 'New person'}>
+      {isSelf ? (
+        <View style={formStyles.identity}>
+          <Avatar name={name || currentUser.name} size={56} />
+          <View style={formStyles.identityCopy}>
+            <Text numberOfLines={1} style={formStyles.identityName}>{currentUser.name}</Text>
+            <Text numberOfLines={1} style={formStyles.identityMeta}>
+              {[roleLabel(currentUser.role), currentApartmentNumber ? `Apartment ${currentApartmentNumber}` : null]
+                .filter(Boolean)
+                .join(' · ')}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
       <View style={{ gap: 6 }}>
         <FieldLabel>Name</FieldLabel>
-        <Input value={name} onChangeText={setName} placeholder="Name" />
+        <Input value={name} onChangeText={setName} placeholder="Full name" autoComplete="name" />
       </View>
 
       <View style={{ gap: 6 }}>
-        <FieldLabel>Email (Optional)</FieldLabel>
+        <FieldLabel>Email</FieldLabel>
         <Input
           autoCapitalize="none"
           autoCorrect={false}
@@ -181,76 +202,208 @@ export const UserForm = ({
           onChangeText={setEmail}
           placeholder="name@example.com"
         />
+        <SubtleText style={{ fontSize: 13 }}>
+          {isSelf ? 'Sign-in codes are sent here.' : 'Needed only if this person signs in to the app.'}
+        </SubtleText>
       </View>
 
-      <View style={{ gap: 6 }}>
-        <FieldLabel>Apartment</FieldLabel>
-        {availableApartments.length > 0 ? (
-          <Row>
-            {availableApartments.map((apartment) => (
-              <Button
-                key={apartment.id}
-                title={apartment.number}
-                variant={apartmentNumber === apartment.number ? 'primary' : 'secondary'}
-                onPress={() => setApartmentNumber(apartment.number)}
-                disabled={!canEditApartment && apartment.number !== apartmentNumber}
-              />
-            ))}
-          </Row>
-        ) : (
-          <Input
-            value={apartmentNumber}
-            onChangeText={setApartmentNumber}
-            placeholder="Apartment number"
-            editable={canEditApartment}
-          />
-        )}
-        {!canEditApartment ? <SubtleText>Only admin can change apartment.</SubtleText> : null}
-      </View>
+      {!isSelf ? (
+        <View style={{ gap: 6 }}>
+          <FieldLabel>Apartment</FieldLabel>
+          {availableApartments.length > 0 ? (
+            <View style={formStyles.chipRow}>
+              {availableApartments.map((apartment) => {
+                const selected = apartmentNumber === apartment.number;
+                const disabled = !canEditApartment && !selected;
+                return (
+                  <Pressable
+                    key={apartment.id}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selected, disabled }}
+                    accessibilityLabel={`Apartment ${apartment.number}`}
+                    disabled={disabled}
+                    onPress={() => setApartmentNumber(apartment.number)}
+                    style={[formStyles.choiceChip, selected ? formStyles.choiceChipSelected : null, disabled ? { opacity: 0.45 } : null]}
+                  >
+                    <Text style={[formStyles.choiceChipText, selected ? formStyles.choiceChipTextSelected : null]}>
+                      {apartment.number}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : (
+            <Input
+              value={apartmentNumber}
+              onChangeText={setApartmentNumber}
+              placeholder="Apartment number"
+              editable={canEditApartment}
+            />
+          )}
+          {!canEditApartment ? <SubtleText style={{ fontSize: 13 }}>Only a building admin can move people between apartments.</SubtleText> : null}
+        </View>
+      ) : null}
 
       {canEditRole ? (
         <View style={{ gap: 6 }}>
           <FieldLabel>Role</FieldLabel>
-          <Horizontal>
-            {roleOptions.map((option) => (
-              <Button
-                key={option}
-                title={option}
-                size="small"
-                variant={role === option ? 'primary' : 'secondary'}
-                onPress={() => setRole(option)}
-              />
-            ))}
-          </Horizontal>
+          <View accessibilityRole="radiogroup" style={formStyles.roleList}>
+            {roleChoices.map((option) => {
+              const selected = role === option;
+              return (
+                <Pressable
+                  key={option}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selected }}
+                  onPress={() => setRole(option)}
+                  style={({ pressed }) => [
+                    formStyles.roleOption,
+                    selected ? formStyles.roleOptionSelected : null,
+                    pressed && !selected ? { opacity: 0.75 } : null,
+                  ]}
+                >
+                  <View style={[formStyles.radio, selected ? formStyles.radioSelected : null]}>
+                    {selected ? <View style={formStyles.radioDot} /> : null}
+                  </View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={formStyles.roleTitle}>{roleLabel(option)}</Text>
+                    <Text style={formStyles.roleDescription}>{roleDescription(option)}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
-      ) : (
-        <View style={{ gap: 4 }}>
+      ) : !isSelf ? (
+        <View style={{ gap: 6 }}>
           <FieldLabel>Role</FieldLabel>
-          <Chip text={role} />
-          <SubtleText>Only admin can change role.</SubtleText>
+          <Chip text={roleLabel(role)} />
+          <SubtleText style={{ fontSize: 13 }}>Only a building admin can change roles.</SubtleText>
         </View>
-      )}
+      ) : null}
 
+      {isSelfDowngrade ? (
+        <Banner type="info" text="Saving will remove your building admin rights." />
+      ) : null}
       {status ? <Banner type="success" text={status} /> : null}
       {error ? <Banner type="error" text={error} /> : null}
 
-      <Horizontal>
-        <Button
-          title={isEditing ? 'Save User' : 'Create User'}
-          onPress={save}
-          loading={saving}
-          disabled={!name.trim() || !apartmentNumber}
-          style={{ flexGrow: 1 }}
-        />
-        {isEditing ? <Button title="Delete" variant="danger" onPress={confirmDelete} /> : null}
-      </Horizontal>
+      <Button
+        title={isSelf ? 'Save changes' : isEditing ? 'Save changes' : 'Add person'}
+        onPress={save}
+        loading={saving}
+        disabled={!name.trim() || !apartmentNumber}
+      />
 
-      {onCancel ? <Button title="Close" variant="ghost" onPress={onCancel} /> : null}
-      {isSelfDowngrade ? (
-        <Text style={{ color: '#92400e', fontSize: 12 }}>
-          Admin self-downgrade will remove admin rights after save.
-        </Text>
+      {isEditing && !isSelf ? (
+        <Button
+          title="Remove person"
+          variant="ghost"
+          icon={<Feather name="trash-2" size={16} color={palette.danger} />}
+          textStyle={{ color: palette.danger }}
+          onPress={confirmDelete}
+          disabled={saving}
+        />
       ) : null}
+
+      {onCancel && !isEditing ? <Button title="Cancel" variant="ghost" onPress={onCancel} /> : null}
     </SectionCard>
   );
 };
+
+const formStyles = StyleSheet.create({
+  identity: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 14,
+    marginBottom: 4,
+  },
+  identityCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  identityName: {
+    color: palette.text,
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  identityMeta: {
+    color: palette.muted,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  choiceChip: {
+    alignItems: 'center',
+    backgroundColor: palette.field,
+    borderColor: palette.border,
+    borderRadius: 10,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 44,
+    minWidth: 56,
+    paddingHorizontal: 14,
+  },
+  choiceChipSelected: {
+    backgroundColor: palette.primary,
+    borderColor: palette.primary,
+  },
+  choiceChipText: {
+    color: palette.text,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  choiceChipTextSelected: {
+    color: '#fff',
+  },
+  roleList: {
+    gap: 8,
+  },
+  roleOption: {
+    alignItems: 'center',
+    backgroundColor: palette.field,
+    borderColor: palette.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
+    padding: 12,
+  },
+  roleOptionSelected: {
+    backgroundColor: palette.primarySoft,
+    borderColor: palette.primary,
+  },
+  radio: {
+    alignItems: 'center',
+    borderColor: palette.borderStrong,
+    borderRadius: 11,
+    borderWidth: 2,
+    height: 22,
+    justifyContent: 'center',
+    width: 22,
+  },
+  radioSelected: {
+    borderColor: palette.primary,
+  },
+  radioDot: {
+    backgroundColor: palette.primary,
+    borderRadius: 5,
+    height: 10,
+    width: 10,
+  },
+  roleTitle: {
+    color: palette.text,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  roleDescription: {
+    color: palette.muted,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+});

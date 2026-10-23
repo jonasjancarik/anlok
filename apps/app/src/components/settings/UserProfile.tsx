@@ -18,12 +18,16 @@ interface UserProfileProps {
   user: User;
 }
 
+const notificationsSupported = Platform.OS !== 'web';
+
 export const UserProfile = ({ token, user }: UserProfileProps) => {
   const navigation = useNavigation<any>();
   const { logout, updateUser } = useAuth();
   const { apiUrl } = useServerConfig();
   const [notificationStatus, setNotificationStatus] = useState(
-    'Manage door activity notifications for this device.'
+    notificationsSupported
+      ? 'Get a notification on this phone when someone opens the door.'
+      : 'Door notifications are available in the mobile app.'
   );
   const [registeringNotifications, setRegisteringNotifications] = useState(false);
   const [testingNotifications, setTestingNotifications] = useState(false);
@@ -50,72 +54,104 @@ export const UserProfile = ({ token, user }: UserProfileProps) => {
 
   return (
     <View style={{ gap: 16 }}>
-      <UserForm token={token} currentUser={user} targetUser={user} onSuccess={handleSelfSave} />
+      <UserForm token={token} currentUser={user} targetUser={user} onSuccess={handleSelfSave} variant="self" />
+
+      <SectionCard title="Notifications" description={notificationStatus}>
+        {notificationsSupported ? (
+          <View style={profileStyles.buttonRow}>
+            <Button
+              title="Turn on"
+              loading={registeringNotifications}
+              disabled={testingNotifications}
+              icon={<Feather name="bell" size={16} color="#fff" />}
+              onPress={() => void enableNotifications()}
+              style={profileStyles.flexButton}
+            />
+            <Button
+              title="Send a test"
+              variant="secondary"
+              loading={testingNotifications}
+              disabled={registeringNotifications}
+              icon={<Feather name="send" size={16} color={palette.text} />}
+              onPress={() => void sendTestNotification()}
+              style={profileStyles.flexButton}
+            />
+          </View>
+        ) : null}
+      </SectionCard>
 
       {user.role === 'admin' ? (
         <ApiKeyManagement token={token} userId={user.id} />
       ) : null}
 
-      <SectionCard title="Server">
-        <Text style={profileStyles.label}>Current server</Text>
-        <Text selectable style={profileStyles.serverUrl}>{apiUrl}</Text>
+      <SectionCard title="Door server">
+        <View style={profileStyles.serverRow}>
+          <View style={profileStyles.serverIcon}>
+            <Feather name="server" size={16} color={palette.primary} />
+          </View>
+          <Text selectable numberOfLines={1} style={profileStyles.serverUrl}>{apiUrl}</Text>
+        </View>
         <Text style={uiStyles.subtleText}>
-          Anlok sends door controls and account requests to this address.
+          This device opens the door and loads your account through this server.
         </Text>
         {Platform.OS !== 'web' ? (
           <Button
             title="Change server"
             variant="secondary"
-            icon={<Feather name="server" size={16} color={palette.text} />}
+            icon={<Feather name="edit-2" size={16} color={palette.text} />}
             onPress={() => navigation.getParent()?.navigate('ServerSetup')}
           />
         ) : null}
       </SectionCard>
 
-      <SectionCard title="Notifications">
-        <Text style={uiStyles.subtleText}>{notificationStatus}</Text>
-        <Button
-          title="Enable on this device"
-          variant="secondary"
-          loading={registeringNotifications}
-          disabled={testingNotifications}
-          icon={<Feather name="bell" size={16} color="#17201A" />}
-          onPress={() => void enableNotifications()}
-        />
-        <Button
-          title="Send test notification"
-          variant="secondary"
-          loading={testingNotifications}
-          disabled={registeringNotifications}
-          icon={<Feather name="send" size={16} color="#17201A" />}
-          onPress={() => void sendTestNotification()}
-        />
-      </SectionCard>
-
-      <SectionCard>
-        <Button 
-          title="Sign out"
-          variant="danger" 
-          icon={<Feather name="log-out" size={16} color="#fff" />}
-          onPress={() => void logout()} 
-        />
-      </SectionCard>
+      <Button
+        title="Sign out"
+        variant="secondary"
+        icon={<Feather name="log-out" size={16} color={palette.danger} />}
+        onPress={() => void logout()}
+        style={profileStyles.signOut}
+        textStyle={{ color: palette.danger }}
+      />
     </View>
   );
 };
 
 const profileStyles = StyleSheet.create({
-  label: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
+  buttonRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  flexButton: {
+    flexBasis: 140,
+    flexGrow: 1,
+  },
+  serverRow: {
+    alignItems: 'center',
+    backgroundColor: palette.field,
+    borderColor: palette.border,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    padding: 10,
+  },
+  serverIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.primarySoft,
+    borderRadius: 8,
+    height: 32,
+    justifyContent: 'center',
+    width: 32,
   },
   serverUrl: {
     color: palette.text,
+    flex: 1,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     fontSize: 14,
-    lineHeight: 20,
+  },
+  signOut: {
+    backgroundColor: 'transparent',
+    marginTop: 4,
   },
 });

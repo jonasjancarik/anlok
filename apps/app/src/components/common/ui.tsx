@@ -62,6 +62,7 @@ interface ButtonProps {
   size?: 'default' | 'small' | 'icon';
   style?: StyleProp<ViewStyle>;
   icon?: React.ReactNode;
+  textStyle?: StyleProp<TextStyle>;
   accessibilityLabel?: string;
   accessibilityHint?: string;
 }
@@ -102,7 +103,7 @@ export const SectionCard = ({
         {description ? <Text style={styles.subtleText}>{description}</Text> : null}
       </View>
     ) : null}
-    <View style={styles.cardBody}>{children}</View>
+    {children ? <View style={styles.cardBody}>{children}</View> : null}
   </View>
 );
 
@@ -203,9 +204,11 @@ export const Banner = ({
   text: string;
 }) => {
   const background =
-    type === 'error' ? '#F8E8E4' : type === 'success' ? '#E5F1EA' : '#EFE8DB';
+    type === 'error' ? '#F8E8E4' : type === 'success' ? '#E5F1EA' : '#F1ECE3';
   const color =
-    type === 'error' ? palette.danger : type === 'success' ? palette.success : palette.warning;
+    type === 'error' ? palette.danger : type === 'success' ? palette.success : palette.text;
+  const icon: keyof typeof Feather.glyphMap =
+    type === 'error' ? 'alert-circle' : type === 'success' ? 'check-circle' : 'info';
   const borderColor = 
     type === 'error' ? '#E5B7AF' : type === 'success' ? '#BDD8CA' : '#DDCDB4';
 
@@ -216,6 +219,7 @@ export const Banner = ({
       accessible
       style={[styles.banner, { backgroundColor: background, borderColor, borderWidth: 1 }]}
     >
+      <Feather name={icon} size={16} color={type === 'info' ? palette.muted : color} style={styles.bannerIcon} />
       <Text style={[styles.bannerText, { color }]}>{text}</Text>
     </View>
   );
@@ -242,6 +246,7 @@ export const Button = ({
   size = 'default',
   style,
   icon,
+  textStyle,
   accessibilityLabel,
   accessibilityHint,
 }: ButtonProps) => {
@@ -293,7 +298,7 @@ export const Button = ({
       ) : (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: size === 'small' ? 4 : 6, justifyContent: 'center' }}>
           {icon}
-          {size !== 'icon' && <Text style={[styles.buttonText, variantTextStyles, sizeTextStyles]}>{title}</Text>}
+          {size !== 'icon' && <Text style={[styles.buttonText, variantTextStyles, sizeTextStyles, textStyle]}>{title}</Text>}
         </View>
       )}
     </Pressable>
@@ -472,13 +477,21 @@ export const styles = StyleSheet.create({
     gap: 12,
   },
   banner: {
+    alignItems: 'flex-start',
     borderRadius: 10,
+    flexDirection: 'row',
+    gap: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
+  bannerIcon: {
+    marginTop: 2,
+  },
   bannerText: {
+    flex: 1,
     fontSize: 14,
     fontWeight: '600',
+    lineHeight: 20,
   },
   label: {
     fontSize: 14,
