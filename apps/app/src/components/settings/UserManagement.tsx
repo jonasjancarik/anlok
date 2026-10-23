@@ -62,6 +62,7 @@ export const UserManagement = ({
   const [modalType, setModalType] = useState<ModalType>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [listError, setListError] = useState('');
   const [updatingUserId, setUpdatingUserId] = useState<number | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -79,7 +80,7 @@ export const UserManagement = ({
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
-    setError('');
+    setListError('');
 
     try {
       const response = await api.get<User[]>('/users', {
@@ -110,7 +111,7 @@ export const UserManagement = ({
 
       setUsers(sorted);
     } catch (nextError) {
-      setError(apiErrorMessage(nextError, 'Failed to fetch users.'));
+      setListError(apiErrorMessage(nextError, 'Failed to fetch users.'));
     } finally {
       setLoading(false);
     }
@@ -234,13 +235,14 @@ export const UserManagement = ({
         </View>
       </View>
 
-      {error && groupedUsers.length > 0 ? <Banner type="error" text={error} /> : null}
+      {error ? <Banner type="error" text={error} /> : null}
+      {listError && groupedUsers.length > 0 ? <Banner type="error" text={listError} /> : null}
 
       <Divider />
       {groupedUsers.length === 0 ? (
         <ListState
           loading={loading}
-          error={error}
+          error={listError}
           emptyTitle="No people yet"
           emptyText="Add a resident or guest to start managing building access."
           onRetry={() => void loadUsers()}

@@ -25,19 +25,20 @@ export const ApartmentManagement = ({ token }: ApartmentManagementProps) => {
   const [number, setNumber] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
+  const [listError, setListError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
   const loadApartments = useCallback(async () => {
     setLoading(true);
-    setError('');
+    setListError('');
     try {
       const response = await api.get<Apartment[]>('/apartments', {
         headers: authHeaders(token),
       });
       setApartments(response.data);
     } catch (nextError) {
-      setError(apiErrorMessage(nextError, 'Failed to load apartments.'));
+      setListError(apiErrorMessage(nextError, 'Failed to load apartments.'));
     } finally {
       setLoading(false);
     }
@@ -142,13 +143,14 @@ export const ApartmentManagement = ({ token }: ApartmentManagementProps) => {
       </View>
 
       {success ? <Banner type="success" text={success} /> : null}
-      {error && apartments.length > 0 ? <Banner type="error" text={error} /> : null}
+      {error ? <Banner type="error" text={error} /> : null}
+      {listError && apartments.length > 0 ? <Banner type="error" text={listError} /> : null}
 
       <Divider />
       {apartments.length === 0 ? (
         <ListState
           loading={loading}
-          error={error}
+          error={listError}
           emptyTitle="No apartments yet"
           emptyText="Create the first apartment to organize residents and building access."
           onRetry={() => void loadApartments()}

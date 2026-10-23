@@ -27,18 +27,19 @@ export const ApiKeyManagement = ({ token, userId }: ApiKeyManagementProps) => {
   const [newKey, setNewKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [listError, setListError] = useState('');
   const [success, setSuccess] = useState('');
 
   const loadKeys = useCallback(async () => {
     setLoading(true);
-    setError('');
+    setListError('');
     try {
       const response = await api.get<ApiKey[]>('/api-keys', {
         headers: authHeaders(token),
       });
       setApiKeys(response.data);
     } catch (nextError) {
-      setError(apiErrorMessage(nextError, 'Failed to load API keys.'));
+      setListError(apiErrorMessage(nextError, 'Failed to load API keys.'));
     } finally {
       setLoading(false);
     }
@@ -134,13 +135,14 @@ export const ApiKeyManagement = ({ token, userId }: ApiKeyManagementProps) => {
       ) : null}
       
       {success && !newKey ? <Banner type="success" text={success} /> : null}
-      {error && apiKeys.length > 0 ? <Banner type="error" text={error} /> : null}
+      {error ? <Banner type="error" text={error} /> : null}
+      {listError && apiKeys.length > 0 ? <Banner type="error" text={listError} /> : null}
 
       <Divider />
       {apiKeys.length === 0 ? (
         <ListState
           loading={loading}
-          error={error}
+          error={listError}
           emptyTitle="No API keys"
           emptyText="Create a key when you need to connect another trusted service."
           onRetry={() => void loadKeys()}

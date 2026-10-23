@@ -65,6 +65,7 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
   const [label, setLabel] = useState('');
   const [generatedPin, setGeneratedPin] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [listError, setListError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [guestHasSchedules, setGuestHasSchedules] = useState(false);
@@ -103,14 +104,14 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
 
   const loadPins = useCallback(async () => {
     setLoading(true);
-    setError('');
+    setListError('');
     try {
       const response = await api.get<PIN[]>(`/users/${user.id}/pins`, {
         headers: authHeaders(token),
       });
       setPins(response.data);
     } catch (nextError) {
-      setError(apiErrorMessage(nextError, 'Failed to fetch PINs.'));
+      setListError(apiErrorMessage(nextError, 'Failed to fetch PINs.'));
     } finally {
       setLoading(false);
     }
@@ -238,14 +239,15 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
       />
 
       {generatedPin ? <Banner type="success" text={`Generated PIN: ${generatedPin}`} /> : null}
-      {error && pins.length > 0 ? <Banner type="error" text={error} /> : null}
+      {error ? <Banner type="error" text={error} /> : null}
+      {listError && pins.length > 0 ? <Banner type="error" text={listError} /> : null}
       {success && !generatedPin ? <Banner type="success" text={success} /> : null}
 
       <Divider />
       {pins.length === 0 ? (
         <ListState
           loading={loading}
-          error={error}
+          error={listError}
           emptyTitle="No PINs yet"
           emptyText="Add a labeled PIN so you can identify it later without revealing the code."
           onRetry={() => void loadPins()}

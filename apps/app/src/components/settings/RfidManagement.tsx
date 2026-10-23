@@ -26,20 +26,21 @@ export const RfidManagement = ({ token, user, canUseScanner }: RfidManagementPro
   const [uuid, setUuid] = useState('');
   const [label, setLabel] = useState('');
   const [error, setError] = useState('');
+  const [listError, setListError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [reading, setReading] = useState(false);
 
   const loadRfids = useCallback(async () => {
     setLoading(true);
-    setError('');
+    setListError('');
     try {
       const response = await api.get<RFID[]>(`/users/${user.id}/rfids`, {
         headers: authHeaders(token),
       });
       setRfids(response.data);
     } catch (nextError) {
-      setError(apiErrorMessage(nextError, 'Failed to fetch RFIDs.'));
+      setListError(apiErrorMessage(nextError, 'Failed to fetch RFIDs.'));
     } finally {
       setLoading(false);
     }
@@ -157,7 +158,8 @@ export const RfidManagement = ({ token, user, canUseScanner }: RfidManagementPro
         </SubtleText>
       ) : null}
 
-      {error && rfids.length > 0 ? <Banner type="error" text={error} /> : null}
+      {error ? <Banner type="error" text={error} /> : null}
+      {listError && rfids.length > 0 ? <Banner type="error" text={listError} /> : null}
       {success ? <Banner type="success" text={success} /> : null}
       {reading ? <Banner type="info" text="Hold the RFID tag near the building reader. Scanning stops after 30 seconds." /> : null}
 
@@ -165,7 +167,7 @@ export const RfidManagement = ({ token, user, canUseScanner }: RfidManagementPro
       {rfids.length === 0 ? (
         <ListState
           loading={loading}
-          error={error}
+          error={listError}
           emptyTitle="No RFID tags yet"
           emptyText="Scan a fob or enter its identifier to add the first tag."
           onRetry={() => void loadRfids()}
