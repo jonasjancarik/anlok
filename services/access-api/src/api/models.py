@@ -30,7 +30,7 @@ class RFIDCreate(BaseModel):
 
 class RFIDResponse(BaseModel):
     id: int
-    label: str
+    label: Optional[str] = None
     created_at: str
     user_id: int
     user_email: Optional[EmailStr] = None
@@ -45,7 +45,7 @@ class PINCreate(BaseModel):
 
 class PINResponse(BaseModel):
     id: int
-    label: str
+    label: Optional[str] = None
     created_at: str
     user_id: int
     user_email: Optional[EmailStr] = None

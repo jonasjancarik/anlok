@@ -162,6 +162,26 @@ class RBACRegressionTests(unittest.TestCase):
         self.assertEqual(result.user_id, 5)
         self.assertEqual(result.label, "my-pin")
 
+    def test_guest_pin_without_label_returns_generated_pin(self):
+        current_user = make_user(1, "admin")
+        guest = make_user(9, "guest")
+        saved_pin = SimpleNamespace(
+            id=44,
+            label=None,
+            created_at=datetime.datetime(2025, 6, 2, 12, 0, 0),
+        )
+
+        with patch("src.api.routes.pins.db.get_user", return_value=guest), patch(
+            "src.api.routes.pins.pin_policy.generate_unique_pin", return_value="4826"
+        ), patch("src.api.routes.pins.db.save_pin", return_value=saved_pin):
+            result = pins_routes.create_pin(
+                pin_request=PINCreate(user_id=9),
+                current_user=current_user,
+            )
+
+        self.assertIsNone(result.label)
+        self.assertEqual(result.pin, "4826")
+
     def test_global_uniqueness_mode_rejects_duplicate_custom_pin(self):
         current_user = make_user(5, "user")
         existing_pin = SimpleNamespace(
