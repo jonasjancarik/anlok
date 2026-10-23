@@ -76,8 +76,8 @@ new APNs/FCM token with the backend.
 After enabling notifications on a native build, backend delivery can be checked
 without opening the door by calling `POST /notification-devices/test` with the
 same user's API token. The response contains the APNs/FCM provider status for
-each registered device. The Account tab also exposes this as a "Send a test
-" action.
+each registered device. The Account tab also exposes this as a "Send a test"
+action.
 
 ## Android APK Releases
 
