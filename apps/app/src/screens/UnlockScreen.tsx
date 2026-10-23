@@ -15,13 +15,17 @@ import {
 import { Feather } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
+import { usePreferences } from '../contexts/PreferencesContext';
 import { api, apiErrorMessage, authHeaders } from '../lib/api';
 import { APP_SUBTITLE, APP_TITLE } from '../lib/config';
-import { Screen, palette } from '../components/common/ui';
+import { Screen, palette, shadows } from '../components/common/ui';
 
 const COOLDOWN_SECONDS = 10;
 const UNLOCK_RING_STROKE_WIDTH = 6;
 const UNLOCK_RING_GAP = 14;
+const MINIMAL_RING_STROKE_WIDTH = 4;
+const MINIMAL_BUTTON_BACKGROUND = '#FFFDF4';
+const MINIMAL_RING_COLOR = '#343434';
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 type UnlockState = 'ready' | 'unlocking' | 'commandSent' | 'failed';
@@ -37,6 +41,8 @@ const firstName = (name?: string) => name?.trim().split(/\s+/)[0] ?? '';
 
 export const UnlockScreen = () => {
   const { token, user } = useAuth();
+  const { unlockButtonStyle } = usePreferences();
+  const minimal = unlockButtonStyle === 'minimal';
   const { height, width } = useWindowDimensions();
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -52,12 +58,14 @@ export const UnlockScreen = () => {
     const availableSize = Math.max(200, Math.min(width - 48, height * 0.44));
     return Math.min(330, availableSize);
   }, [height, width]);
-  const unlockSize = stageSize - UNLOCK_RING_GAP * 2;
-  const ringRadius = (stageSize - UNLOCK_RING_STROKE_WIDTH) / 2;
+  const unlockSize = minimal ? stageSize : stageSize - UNLOCK_RING_GAP * 2;
+  const ringStrokeWidth = minimal ? MINIMAL_RING_STROKE_WIDTH : UNLOCK_RING_STROKE_WIDTH;
+  const ringRadius = (stageSize - ringStrokeWidth) / 2;
   const ringCircumference = 2 * Math.PI * ringRadius;
+  // Green: the ring fills up during the cooldown. Minimal: the full ring drains away.
   const ringDashOffset = unlockRingAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [ringCircumference, 0],
+    outputRange: minimal ? [0, ringCircumference] : [ringCircumference, 0],
   });
 
   const cooldownLeft = useMemo(() => {
@@ -209,12 +217,37 @@ export const UnlockScreen = () => {
 
   const unlockDisabled = !token || cooldownLeft > 0 || loading;
   const sent = cooldownLeft > 0;
-  const unlockLabel = loading ? 'Unlocking…' : sent ? 'Sent' : 'Unlock';
+  const unlockLabel = minimal
+    ? loading ? 'Unlocking…' : sent ? 'Command sent' : 'Unlock Door'
+    : loading ? 'Unlocking…' : sent ? 'Sent' : 'Unlock';
   const unlockIcon: keyof typeof Feather.glyphMap = sent ? 'check' : unlockState === 'failed' ? 'rotate-cw' : 'unlock';
   const unavailable = !token;
   const name = firstName(user?.name);
   const apartment = user?.apartment?.number;
   const statusTone = unlockState === 'failed' ? 'error' : sent ? 'success' : 'neutral';
+
+  const progressRing = (
+    <Svg
+      pointerEvents="none"
+      height={stageSize}
+      style={[screenStyles.progressCircle, { transform: [{ rotate: '-90deg' }] }]}
+      viewBox={`0 0 ${stageSize} ${stageSize}`}
+      width={stageSize}
+    >
+      <AnimatedCircle
+        cx={stageSize / 2}
+        cy={stageSize / 2}
+        fill="none"
+        opacity={minimal || sent ? 1 : 0}
+        r={ringRadius}
+        stroke={minimal ? MINIMAL_RING_COLOR : palette.primary}
+        strokeDasharray={ringCircumference}
+        strokeDashoffset={ringDashOffset as any}
+        strokeLinecap={minimal ? 'butt' : 'round'}
+        strokeWidth={ringStrokeWidth}
+      />
+    </Svg>
+  );
 
   return (
     <Screen>
@@ -235,37 +268,20 @@ export const UnlockScreen = () => {
         </View>
 
         <View style={[screenStyles.stage, { height: stageSize, width: stageSize }]}>
-          <View
-            pointerEvents="none"
-            style={[
-              screenStyles.track,
-              { borderRadius: stageSize / 2, height: stageSize, width: stageSize },
-            ]}
-          />
-          <Svg
-            pointerEvents="none"
-            height={stageSize}
-            style={[screenStyles.progressCircle, { transform: [{ rotate: '-90deg' }] }]}
-            viewBox={`0 0 ${stageSize} ${stageSize}`}
-            width={stageSize}
-          >
-            <AnimatedCircle
-              cx={stageSize / 2}
-              cy={stageSize / 2}
-              fill="none"
-              opacity={sent ? 1 : 0}
-              r={ringRadius}
-              stroke={palette.primary}
-              strokeDasharray={ringCircumference}
-              strokeDashoffset={ringDashOffset as any}
-              strokeLinecap="round"
-              strokeWidth={UNLOCK_RING_STROKE_WIDTH}
+          {minimal ? null : (
+            <View
+              pointerEvents="none"
+              style={[
+                screenStyles.track,
+                { borderRadius: stageSize / 2, height: stageSize, width: stageSize },
+              ]}
             />
-          </Svg>
+          )}
+          {minimal ? null : progressRing}
           <Animated.View
             style={[
               { borderRadius: unlockSize / 2, height: unlockSize, transform: [{ scale: scaleAnim }], width: unlockSize },
-              screenStyles.buttonShadow,
+              minimal ? [screenStyles.minimalButtonShadow, shadows] : screenStyles.buttonShadow,
             ]}
           >
             <Pressable
@@ -288,20 +304,28 @@ export const UnlockScreen = () => {
               style={({ pressed }) => [
                 screenStyles.unlockButton,
                 { borderRadius: unlockSize / 2, height: unlockSize, width: unlockSize },
-                sent ? screenStyles.unlockButtonSent : null,
+                minimal ? screenStyles.minimalButton : sent ? screenStyles.unlockButtonSent : null,
                 unavailable ? screenStyles.unlockButtonUnavailable : null,
-                pressed ? screenStyles.unlockButtonPressed : null,
+                pressed ? (minimal ? screenStyles.minimalButtonPressed : screenStyles.unlockButtonPressed) : null,
               ]}
             >
-              <Feather name={unlockIcon} size={Math.round(unlockSize * 0.2)} color="#fff" />
-              <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1} style={screenStyles.unlockButtonText}>
+              {minimal ? null : (
+                <Feather name={unlockIcon} size={Math.round(unlockSize * 0.2)} color="#fff" />
+              )}
+              <Text
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+                numberOfLines={minimal ? 2 : 1}
+                style={[screenStyles.unlockButtonText, minimal ? screenStyles.minimalButtonText : null]}
+              >
                 {unlockLabel}
               </Text>
-              {sent ? (
+              {sent && !minimal ? (
                 <Text style={screenStyles.cooldownText}>Ready again in {cooldownLeft}s</Text>
               ) : null}
             </Pressable>
           </Animated.View>
+          {minimal ? progressRing : null}
         </View>
 
         <View style={screenStyles.statusArea}>
@@ -415,6 +439,18 @@ const screenStyles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
     padding: 28,
+  },
+  minimalButtonShadow: {
+    backgroundColor: MINIMAL_BUTTON_BACKGROUND,
+  },
+  minimalButton: {
+    backgroundColor: MINIMAL_BUTTON_BACKGROUND,
+  },
+  minimalButtonPressed: {
+    opacity: 0.82,
+  },
+  minimalButtonText: {
+    color: '#000',
   },
   unlockButtonSent: {
     backgroundColor: palette.primaryActive,

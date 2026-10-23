@@ -116,6 +116,7 @@ npm run android:release:upload -- v1.0.0
 - Passwordless login via magic link (`/auth/magic-links`, `/auth/tokens`)
 - Unlock door (`/doors/unlock`) with an explicit request/success/failure lifecycle; deep links require confirmation before sending a command
 - Settings tabs: Account, People, Apartments (apartments for building admins only)
+- Unlock button style (Green by default, or Minimal) chosen in Settings → Account and saved per device
 - User management: create/edit/delete/toggle active
 - PIN management
 - RFID management (+ reader endpoint)

@@ -3,13 +3,14 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
+import { UnlockButtonStyle, usePreferences } from '../../contexts/PreferencesContext';
 import { useServerConfig } from '../../contexts/ServerConfigContext';
 import {
   registerForAccessNotifications,
   sendAccessNotificationTest,
 } from '../../lib/notifications';
 import { User } from '../../types/entities';
-import { Button, SectionCard, palette, styles as uiStyles } from '../common/ui';
+import { Button, SectionCard, SegmentedControl, palette, styles as uiStyles } from '../common/ui';
 import { ApiKeyManagement } from './ApiKeyManagement';
 import { UserForm } from './UserForm';
 
@@ -24,6 +25,7 @@ export const UserProfile = ({ token, user }: UserProfileProps) => {
   const navigation = useNavigation<any>();
   const { logout, updateUser } = useAuth();
   const { apiUrl } = useServerConfig();
+  const { unlockButtonStyle, setUnlockButtonStyle } = usePreferences();
   const [notificationStatus, setNotificationStatus] = useState(
     notificationsSupported
       ? 'Get a notification on this phone when someone opens the door.'
@@ -55,6 +57,17 @@ export const UserProfile = ({ token, user }: UserProfileProps) => {
   return (
     <View style={{ gap: 16 }}>
       <UserForm token={token} currentUser={user} targetUser={user} onSuccess={handleSelfSave} variant="self" />
+
+      <SectionCard title="Unlock button" description="Choose how the unlock button looks on this device.">
+        <SegmentedControl<UnlockButtonStyle>
+          options={[
+            { key: 'green', label: 'Green' },
+            { key: 'minimal', label: 'Minimal' },
+          ]}
+          value={unlockButtonStyle}
+          onChange={(next) => void setUnlockButtonStyle(next)}
+        />
+      </SectionCard>
 
       <SectionCard title="Notifications" description={notificationStatus}>
         {notificationsSupported ? (
