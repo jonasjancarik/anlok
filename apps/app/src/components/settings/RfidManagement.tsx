@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Platform, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { api, apiErrorMessage, authHeaders } from '../../lib/api';
+import { parseServerDate } from '../../lib/time';
 import { RFID, User } from '../../types/entities';
 import {
   Banner,
@@ -195,7 +196,7 @@ export const RfidManagement = ({ token, user, canUseScanner }: RfidManagementPro
                     ...{item.last_four_digits}
                   </Text>
                   <Text style={{ fontSize: 12, color: palette.border }}>•</Text>
-                  <SubtleText style={{ fontSize: 12 }}>{new Date(item.created_at).toLocaleDateString()}</SubtleText>
+                  <SubtleText style={{ fontSize: 12 }}>{parseServerDate(item.created_at).toLocaleDateString()}</SubtleText>
                 </View>
               </View>
               <Button 

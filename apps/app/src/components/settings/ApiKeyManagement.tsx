@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { api, apiErrorMessage, authHeaders } from '../../lib/api';
+import { parseServerDate } from '../../lib/time';
 import { ApiKey } from '../../types/entities';
 import {
   Banner,
@@ -169,7 +170,7 @@ export const ApiKeyManagement = ({ token, userId }: ApiKeyManagementProps) => {
                   <Chip text={apiKey.is_active ? 'Active' : 'Inactive'} tone={apiKey.is_active ? 'success' : 'danger'} />
                 </View>
                 <SubtleText style={{ fontSize: 13, marginBottom: 2 }}>{apiKey.description || 'No description'}</SubtleText>
-                <SubtleText style={{ fontSize: 12 }}>Created: {new Date(apiKey.created_at).toLocaleDateString()}</SubtleText>
+                <SubtleText style={{ fontSize: 12 }}>Created: {parseServerDate(apiKey.created_at).toLocaleDateString()}</SubtleText>
               </View>
               <Button
                 size="icon"

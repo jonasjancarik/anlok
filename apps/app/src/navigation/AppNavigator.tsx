@@ -16,7 +16,7 @@ import { palette } from '../components/common/ui';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
-const TAB_BAR_BASE_HEIGHT = 64;
+const TAB_BAR_BASE_HEIGHT = 72;
 const TAB_BAR_BASE_BOTTOM_PADDING = 10;
 const TAB_BAR_SAFE_AREA_GAP = 8;
 const TAB_BAR_COMPACT_SAFE_AREA_MAX = 16;
@@ -55,15 +55,16 @@ const MainTabs = () => {
           backgroundColor: palette.card,
           height: tabBarHeight,
           paddingBottom: tabBarBottomPadding,
-          paddingTop: 8,
+          paddingTop: 6,
         },
         tabBarItemStyle: {
           paddingHorizontal: 4,
         },
         tabBarLabelStyle: {
-          fontWeight: '600',
+          fontWeight: '700',
           fontSize: 12,
-          lineHeight: 14,
+          lineHeight: 16,
+          marginTop: 2,
         },
         tabBarIcon: ({ color, size }) => {
           if (route.name === 'Unlock') {
@@ -101,7 +102,7 @@ const CenteredLoader = ({ label }: { label: string }) => (
     }}
   >
     <ActivityIndicator size="large" color={palette.primary} />
-    <Text style={{ color: palette.text, fontWeight: '700', fontSize: 16 }}>{label}</Text>
+    <Text style={{ color: palette.muted, fontWeight: '700', fontSize: 15 }}>{label}</Text>
   </View>
 );
 
@@ -118,10 +119,10 @@ const WebConfigMissing = () => (
   >
     <Feather name="server" size={36} color={palette.danger} />
     <Text style={{ color: palette.text, fontWeight: '800', fontSize: 20, textAlign: 'center' }}>
-      Server URL is not configured
+      This app isn&apos;t connected to a door server yet
     </Text>
     <Text style={{ color: palette.muted, fontSize: 15, textAlign: 'center', lineHeight: 22, maxWidth: 420 }}>
-      Set EXPO_PUBLIC_API_URL for this hosted web app.
+      Ask your building administrator to finish setting up the web app.
     </Text>
   </View>
 );
@@ -131,11 +132,11 @@ export const AppNavigator = () => {
   const { loading: serverConfigLoading, apiUrl } = useServerConfig();
 
   if (serverConfigLoading) {
-    return <CenteredLoader label="Loading server config..." />;
+    return <CenteredLoader label="Connecting…" />;
   }
 
   if (loading) {
-    return <CenteredLoader label="Restoring session..." />;
+    return <CenteredLoader label="Loading…" />;
   }
 
   return (

@@ -12,29 +12,31 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import { api, apiErrorMessage, authHeaders } from '../lib/api';
-import { APP_SUBTITLE } from '../lib/config';
-import { Screen, palette, shadows, styles as uiStyles } from '../components/common/ui';
+import { APP_SUBTITLE, APP_TITLE } from '../lib/config';
+import { Screen, palette } from '../components/common/ui';
 
 const COOLDOWN_SECONDS = 10;
-const UNLOCK_RING_STROKE_WIDTH = 4;
-const UNLOCK_BUTTON_BACKGROUND = '#FFFDF4';
-const UNLOCK_RING_COLOR = '#343434';
+const UNLOCK_RING_STROKE_WIDTH = 6;
+const UNLOCK_RING_GAP = 14;
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 type UnlockState = 'ready' | 'unlocking' | 'commandSent' | 'failed';
 
 const statusCopy: Record<UnlockState, string> = {
-  ready: 'Ready to unlock',
+  ready: 'Tap the button to open the door',
   unlocking: 'Sending unlock command…',
   commandSent: 'Unlock command sent. The door may take a moment to respond.',
   failed: 'Couldn’t send unlock command.',
 };
 
+const firstName = (name?: string) => name?.trim().split(/\s+/)[0] ?? '';
+
 export const UnlockScreen = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { height, width } = useWindowDimensions();
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -46,15 +48,16 @@ export const UnlockScreen = () => {
   const unlockRingAnim = useMemo(() => new Animated.Value(0), []);
   const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const unlockSize = useMemo(() => {
-    const availableSize = Math.max(180, Math.min(width - 48, height * 0.42));
-    return Math.min(320, availableSize);
+  const stageSize = useMemo(() => {
+    const availableSize = Math.max(200, Math.min(width - 48, height * 0.44));
+    return Math.min(330, availableSize);
   }, [height, width]);
-  const ringRadius = (unlockSize - UNLOCK_RING_STROKE_WIDTH) / 2;
+  const unlockSize = stageSize - UNLOCK_RING_GAP * 2;
+  const ringRadius = (stageSize - UNLOCK_RING_STROKE_WIDTH) / 2;
   const ringCircumference = 2 * Math.PI * ringRadius;
   const ringDashOffset = unlockRingAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, ringCircumference],
+    outputRange: [ringCircumference, 0],
   });
 
   const cooldownLeft = useMemo(() => {
@@ -205,19 +208,66 @@ export const UnlockScreen = () => {
   };
 
   const unlockDisabled = !token || cooldownLeft > 0 || loading;
-  const unlockLabel = loading ? 'Unlocking…' : cooldownLeft > 0 ? 'Command sent' : 'Unlock Door';
+  const sent = cooldownLeft > 0;
+  const unlockLabel = loading ? 'Unlocking…' : sent ? 'Sent' : 'Unlock';
+  const unlockIcon: keyof typeof Feather.glyphMap = sent ? 'check' : unlockState === 'failed' ? 'rotate-cw' : 'unlock';
   const unavailable = !token;
+  const name = firstName(user?.name);
+  const apartment = user?.apartment?.number;
+  const statusTone = unlockState === 'failed' ? 'error' : sent ? 'success' : 'neutral';
 
   return (
     <Screen>
       <View style={screenStyles.shell}>
         <View style={screenStyles.header}>
-          <Text style={screenStyles.brand}>Anlok</Text>
-          <Text style={screenStyles.subtitle}>{APP_SUBTITLE}</Text>
+          <View style={screenStyles.brandRow}>
+            <View style={screenStyles.brandMark}>
+              <Feather name="lock" size={14} color={palette.primary} />
+            </View>
+            <Text style={screenStyles.brand}>{APP_TITLE}</Text>
+          </View>
+          <Text accessibilityRole="header" style={screenStyles.greeting}>
+            {name ? `Hi, ${name}` : 'Welcome'}
+          </Text>
+          <Text style={screenStyles.subtitle}>
+            {[APP_SUBTITLE, apartment ? `Apartment ${apartment}` : null].filter(Boolean).join(' · ')}
+          </Text>
         </View>
 
-        <View style={[screenStyles.stage, { height: unlockSize, width: unlockSize }]}>
-          <Animated.View style={[screenStyles.buttonShadow, { borderRadius: unlockSize / 2, height: unlockSize, transform: [{ scale: scaleAnim }], width: unlockSize }, shadows]}>
+        <View style={[screenStyles.stage, { height: stageSize, width: stageSize }]}>
+          <View
+            pointerEvents="none"
+            style={[
+              screenStyles.track,
+              { borderRadius: stageSize / 2, height: stageSize, width: stageSize },
+            ]}
+          />
+          <Svg
+            pointerEvents="none"
+            height={stageSize}
+            style={[screenStyles.progressCircle, { transform: [{ rotate: '-90deg' }] }]}
+            viewBox={`0 0 ${stageSize} ${stageSize}`}
+            width={stageSize}
+          >
+            <AnimatedCircle
+              cx={stageSize / 2}
+              cy={stageSize / 2}
+              fill="none"
+              opacity={sent ? 1 : 0}
+              r={ringRadius}
+              stroke={palette.primary}
+              strokeDasharray={ringCircumference}
+              strokeDashoffset={ringDashOffset as any}
+              strokeLinecap="round"
+              strokeWidth={UNLOCK_RING_STROKE_WIDTH}
+            />
+          </Svg>
+          <Animated.View
+            style={[
+              { borderRadius: unlockSize / 2, height: unlockSize, transform: [{ scale: scaleAnim }], width: unlockSize },
+              screenStyles.buttonShadow,
+            ]}
+          >
             <Pressable
               accessibilityHint={
                 unlockDisabled
@@ -238,46 +288,50 @@ export const UnlockScreen = () => {
               style={({ pressed }) => [
                 screenStyles.unlockButton,
                 { borderRadius: unlockSize / 2, height: unlockSize, width: unlockSize },
+                sent ? screenStyles.unlockButtonSent : null,
                 unavailable ? screenStyles.unlockButtonUnavailable : null,
                 pressed ? screenStyles.unlockButtonPressed : null,
               ]}
             >
-              <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={2} style={screenStyles.unlockButtonText}>
+              <Feather name={unlockIcon} size={Math.round(unlockSize * 0.2)} color="#fff" />
+              <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1} style={screenStyles.unlockButtonText}>
                 {unlockLabel}
               </Text>
+              {sent ? (
+                <Text style={screenStyles.cooldownText}>Ready again in {cooldownLeft}s</Text>
+              ) : null}
             </Pressable>
           </Animated.View>
-          <Svg
-            pointerEvents="none"
-            height={unlockSize}
-            style={[
-              screenStyles.progressCircle,
-              { transform: [{ rotate: '-90deg' }] },
-            ]}
-            viewBox={`0 0 ${unlockSize} ${unlockSize}`}
-            width={unlockSize}
-          >
-            <AnimatedCircle
-              cx={unlockSize / 2}
-              cy={unlockSize / 2}
-              fill="none"
-              r={ringRadius}
-              stroke={UNLOCK_RING_COLOR}
-              strokeDasharray={ringCircumference}
-              strokeDashoffset={ringDashOffset as any}
-              strokeWidth={UNLOCK_RING_STROKE_WIDTH}
-            />
-          </Svg>
         </View>
 
         <View style={screenStyles.statusArea}>
-          <Text accessibilityLiveRegion="polite" style={[uiStyles.subtleText, screenStyles.statusText]}>
-            {statusCopy[unlockState]}
-          </Text>
+          <View
+            style={[
+              screenStyles.statusPill,
+              statusTone === 'success' ? screenStyles.statusPillSuccess : null,
+              statusTone === 'error' ? screenStyles.statusPillError : null,
+            ]}
+          >
+            {statusTone !== 'neutral' ? (
+              <Feather
+                name={statusTone === 'success' ? 'check-circle' : 'alert-circle'}
+                size={16}
+                color={statusTone === 'success' ? palette.success : palette.danger}
+              />
+            ) : null}
+            <Text
+              accessibilityLiveRegion="polite"
+              style={[
+                screenStyles.statusText,
+                statusTone === 'success' ? { color: palette.success } : null,
+                statusTone === 'error' ? { color: palette.danger } : null,
+              ]}
+            >
+              {statusCopy[unlockState]}
+            </Text>
+          </View>
           {error ? (
-            <View style={screenStyles.errorPanel}>
-              <Text accessibilityLiveRegion="assertive" style={screenStyles.errorText}>{error}</Text>
-            </View>
+            <Text accessibilityLiveRegion="assertive" style={screenStyles.errorText}>{error}</Text>
           ) : null}
         </View>
       </View>
@@ -289,12 +343,35 @@ const screenStyles = StyleSheet.create({
   shell: {
     alignItems: 'center',
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'space-evenly',
     padding: 20,
   },
+  header: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  brandRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 6,
+  },
+  brandMark: {
+    alignItems: 'center',
+    backgroundColor: palette.primarySoft,
+    borderRadius: 8,
+    height: 26,
+    justifyContent: 'center',
+    width: 26,
+  },
   brand: {
+    color: palette.primary,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  greeting: {
     color: palette.text,
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: '900',
     letterSpacing: 0,
     textAlign: 'center',
@@ -304,41 +381,63 @@ const screenStyles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     lineHeight: 22,
-    marginTop: 8,
     textAlign: 'center',
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 74,
   },
   stage: {
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
   },
+  track: {
+    backgroundColor: palette.primarySoft,
+    left: 0,
+    opacity: 0.6,
+    position: 'absolute',
+    top: 0,
+  },
   buttonShadow: {
-    backgroundColor: UNLOCK_BUTTON_BACKGROUND,
+    backgroundColor: palette.primary,
+    ...Platform.select({
+      ios: {
+        shadowColor: palette.primaryActive,
+        shadowOffset: { width: 0, height: 14 },
+        shadowOpacity: 0.28,
+        shadowRadius: 24,
+      },
+      android: { elevation: 8 },
+      web: { boxShadow: '0 18px 40px rgba(16, 82, 63, 0.28)' as any },
+    }),
   },
   unlockButton: {
     alignItems: 'center',
-    backgroundColor: UNLOCK_BUTTON_BACKGROUND,
+    backgroundColor: palette.primary,
+    gap: 6,
     justifyContent: 'center',
     overflow: 'hidden',
     padding: 28,
   },
+  unlockButtonSent: {
+    backgroundColor: palette.primaryActive,
+  },
   unlockButtonPressed: {
-    opacity: 0.82,
+    backgroundColor: palette.primaryActive,
   },
   unlockButtonUnavailable: {
     opacity: 0.48,
   },
   unlockButtonText: {
-    color: '#000',
+    color: '#fff',
     fontSize: 30,
     fontWeight: '900',
     letterSpacing: 0,
     lineHeight: 36,
     textAlign: 'center',
+  },
+  cooldownText: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 14,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '700',
   },
   progressCircle: {
     left: 0,
@@ -347,28 +446,40 @@ const screenStyles = StyleSheet.create({
   },
   statusArea: {
     alignItems: 'center',
-    height: 88,
-    marginTop: 52,
-    paddingHorizontal: 20,
+    gap: 10,
+    minHeight: 96,
+    paddingHorizontal: 12,
+  },
+  statusPill: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    maxWidth: 360,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  statusPillSuccess: {
+    backgroundColor: '#E5F1EA',
+    borderRadius: 12,
+  },
+  statusPillError: {
+    backgroundColor: '#F8E8E4',
+    borderRadius: 12,
   },
   statusText: {
-    fontSize: 16,
+    color: palette.muted,
+    flexShrink: 1,
+    fontSize: 15,
     fontWeight: '700',
+    lineHeight: 21,
     textAlign: 'center',
-  },
-  errorPanel: {
-    backgroundColor: '#F8E8E4',
-    borderColor: '#E5B7AF',
-    borderRadius: 8,
-    borderWidth: 1,
-    marginTop: 12,
-    padding: 12,
   },
   errorText: {
     color: palette.danger,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     lineHeight: 20,
+    maxWidth: 360,
     textAlign: 'center',
   },
 });

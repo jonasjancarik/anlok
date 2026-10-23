@@ -14,6 +14,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const palette = {
@@ -85,10 +86,112 @@ export const PageScroll = ({ children }: { children: React.ReactNode }) => (
   </ScrollView>
 );
 
-export const SectionCard = ({ children, title }: { children: React.ReactNode; title?: string }) => (
+export const SectionCard = ({
+  children,
+  title,
+  description,
+}: {
+  children: React.ReactNode;
+  title?: string;
+  description?: string;
+}) => (
   <View style={[styles.card, shadows]}>
-    {title && <Text style={styles.cardTitle}>{title}</Text>}
+    {title || description ? (
+      <View style={styles.cardHeading}>
+        {title ? <Text accessibilityRole="header" style={styles.cardTitle}>{title}</Text> : null}
+        {description ? <Text style={styles.subtleText}>{description}</Text> : null}
+      </View>
+    ) : null}
     <View style={styles.cardBody}>{children}</View>
+  </View>
+);
+
+export const ScreenHeader = ({
+  eyebrow,
+  title,
+  subtitle,
+  action,
+}: {
+  eyebrow?: string;
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}) => (
+  <View style={styles.screenHeader}>
+    <View style={styles.screenHeaderCopy}>
+      {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
+      <Text accessibilityRole="header" style={styles.screenTitle}>{title}</Text>
+      {subtitle ? <Text style={styles.subtleText}>{subtitle}</Text> : null}
+    </View>
+    {action}
+  </View>
+);
+
+export interface SegmentOption<T extends string> {
+  key: T;
+  label: string;
+  icon?: keyof typeof Feather.glyphMap;
+  count?: number;
+}
+
+export const SegmentedControl = <T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: SegmentOption<T>[];
+  value: T;
+  onChange: (next: T) => void;
+}) => (
+  <View accessibilityRole="tablist" style={styles.segments}>
+    {options.map((option) => {
+      const selected = option.key === value;
+      const color = selected ? palette.text : palette.muted;
+      return (
+        <Pressable
+          key={option.key}
+          accessibilityLabel={option.count === undefined ? option.label : `${option.label}, ${option.count}`}
+          accessibilityRole="tab"
+          accessibilityState={{ selected }}
+          onPress={() => onChange(option.key)}
+          style={({ pressed }) => [
+            styles.segment,
+            selected ? [styles.segmentSelected, shadows] : null,
+            pressed && !selected ? { opacity: 0.7 } : null,
+          ]}
+        >
+          {option.icon ? <Feather name={option.icon} size={15} color={color} /> : null}
+          <Text numberOfLines={1} style={[styles.segmentText, { color }]}>{option.label}</Text>
+          {option.count !== undefined ? (
+            <Text style={[styles.segmentCount, selected ? { color: palette.primary } : null]}>{option.count}</Text>
+          ) : null}
+        </Pressable>
+      );
+    })}
+  </View>
+);
+
+const initialsFor = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('') || '?';
+
+export const Avatar = ({ name, size = 40, muted = false }: { name: string; size?: number; muted?: boolean }) => (
+  <View
+    accessibilityElementsHidden
+    importantForAccessibility="no-hide-descendants"
+    style={[
+      styles.avatar,
+      { borderRadius: size / 2, height: size, width: size },
+      muted ? styles.avatarMuted : null,
+    ]}
+  >
+    <Text style={[styles.avatarText, { fontSize: size * 0.38 }, muted ? { color: palette.muted } : null]}>
+      {initialsFor(name)}
+    </Text>
   </View>
 );
 
@@ -124,7 +227,7 @@ export const FieldLabel = ({ children, style }: { children: React.ReactNode, sty
 
 export const Input = (props: TextInputProps) => (
   <TextInput
-    placeholderTextColor="#94A3B8"
+    placeholderTextColor={palette.subtle}
     {...props}
     style={[styles.input, props.multiline ? styles.inputMultiline : null, props.style]}
   />
@@ -284,22 +387,92 @@ export const styles = StyleSheet.create({
   card: {
     backgroundColor: palette.card,
     borderColor: palette.border,
-    borderRadius: 8,
+    borderRadius: 14,
     borderWidth: 1,
     padding: 20,
     gap: 16,
   },
+  cardHeading: {
+    gap: 4,
+  },
   cardTitle: {
     color: palette.text,
     fontWeight: '800',
-    fontSize: 19,
+    fontSize: 18,
     letterSpacing: 0,
+  },
+  screenHeader: {
+    alignItems: 'flex-end',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    paddingTop: 8,
+  },
+  screenHeaderCopy: {
+    flex: 1,
+    gap: 4,
+    minWidth: 0,
+  },
+  eyebrow: {
+    color: palette.primary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  screenTitle: {
+    color: palette.text,
+    fontSize: 30,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  segments: {
+    backgroundColor: '#ECE5D9',
+    borderRadius: 12,
+    flexDirection: 'row',
+    gap: 2,
+    padding: 3,
+  },
+  segment: {
+    alignItems: 'center',
+    borderRadius: 10,
+    flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
+    minHeight: 40,
+    paddingHorizontal: 8,
+  },
+  segmentSelected: {
+    backgroundColor: palette.raised,
+  },
+  segmentText: {
+    flexShrink: 1,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  segmentCount: {
+    color: palette.subtle,
+    fontSize: 13,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '800',
+  },
+  avatar: {
+    alignItems: 'center',
+    backgroundColor: palette.primarySoft,
+    justifyContent: 'center',
+  },
+  avatarMuted: {
+    backgroundColor: '#ECE5D9',
+  },
+  avatarText: {
+    color: palette.primary,
+    fontWeight: '800',
   },
   cardBody: {
     gap: 12,
   },
   banner: {
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
@@ -308,18 +481,16 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
   },
   label: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
-    color: palette.muted,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.7,
+    color: palette.text,
+    marginBottom: 2,
   },
   input: {
     borderWidth: 1,
     borderColor: palette.border,
     backgroundColor: palette.field,
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
     color: palette.text,
@@ -335,19 +506,19 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   buttonSizeDefault: {
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
     minHeight: 52,
   },
   buttonSizeSmall: {
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
     minHeight: 44,
   },
   buttonSizeIcon: {
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 8,
     minHeight: 44,
@@ -417,7 +588,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: palette.field,
     borderColor: palette.border,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
     gap: 8,
     paddingHorizontal: 20,
@@ -441,9 +612,7 @@ export const styles = StyleSheet.create({
   },
   chip: {
     alignSelf: 'flex-start',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },

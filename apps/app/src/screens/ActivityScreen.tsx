@@ -3,25 +3,24 @@ import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
-  ListRenderItemInfo,
-  Pressable,
   RefreshControl,
+  SectionList,
+  SectionListRenderItemInfo,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { Banner, Button, Chip, Screen, SectionCard, palette, styles as uiStyles } from '../components/common/ui';
+import { Banner, Button, ScreenHeader, Screen, SegmentedControl, palette } from '../components/common/ui';
 import { useAuth } from '../contexts/AuthContext';
 import { api, apiErrorMessage, authHeaders } from '../lib/api';
-import { toLocalDateTime } from '../lib/time';
+import { parseServerDate, relativeDayLabel, toLocalTime } from '../lib/time';
 import { AccessEvent } from '../types/entities';
 
 type ActivityFilter = 'all' | 'granted' | 'denied';
 
 const methodLabel = (event: AccessEvent) => {
   if (event.method === 'remote_unlock') {
-    return 'Remote unlock requested';
+    return 'Unlock from the app';
   }
   if (event.method === 'rfid') {
     const lastFour = event.metadata?.last_four_digits;
@@ -34,7 +33,20 @@ const methodLabel = (event: AccessEvent) => {
   return 'Unknown credential';
 };
 
-const reasonLabel = (reason?: string) => reason?.replace(/_/g, ' ') ?? 'No reason recorded';
+const reasonCopy: Record<string, string> = {
+  unknown_credential: 'Unknown PIN or card',
+  outside_allowed_schedule: 'Outside the allowed schedule',
+  inactive_user: 'Person is disabled',
+  ambiguous_scheduled_pin: 'PIN matches more than one guest',
+};
+
+const reasonLabel = (reason?: string) => {
+  if (!reason) return 'No reason recorded';
+  const text = reasonCopy[reason] ?? reason.replace(/_/g, ' ');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
+
+type EventSection = { title: string; data: AccessEvent[] };
 
 const eventIcon = (method: AccessEvent['method']) => {
   if (method === 'remote_unlock') return 'smartphone';
@@ -48,7 +60,7 @@ const updatedLabel = (updatedAt: Date | null) => {
   const seconds = Math.max(0, Math.round((Date.now() - updatedAt.getTime()) / 1000));
   if (seconds < 10) return 'Updated just now';
   if (seconds < 60) return `Updated ${seconds} seconds ago`;
-  return `Updated at ${updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  return `Updated at ${toLocalTime(updatedAt)}`;
 };
 
 export const ActivityScreen = () => {
@@ -104,31 +116,59 @@ export const ActivityScreen = () => {
     denied: events.filter((event) => event.outcome === 'denied').length,
   }), [events]);
 
-  const renderEvent = useCallback(({ item: event }: ListRenderItemInfo<AccessEvent>) => {
+  const sections = useMemo<EventSection[]>(() => {
+    const now = new Date();
+    const result: EventSection[] = [];
+    visibleEvents.forEach((event) => {
+      const date = parseServerDate(event.created_at);
+      const title = Number.isNaN(date.getTime()) ? 'Earlier' : relativeDayLabel(date, now);
+      const last = result[result.length - 1];
+      if (last && last.title === title) {
+        last.data.push(event);
+      } else {
+        result.push({ title, data: [event] });
+      }
+    });
+    return result;
+  }, [visibleEvents]);
+
+  const renderEvent = useCallback(({ item: event, index, section }: SectionListRenderItemInfo<AccessEvent, EventSection>) => {
     const granted = event.outcome === 'granted';
     const method = methodLabel(event);
-    const meta = [
-      toLocalDateTime(event.created_at),
+    const date = parseServerDate(event.created_at);
+    const time = Number.isNaN(date.getTime()) ? event.created_at : toLocalTime(date);
+    const who = [
       event.user_name,
       event.apartment_number ? `Apartment ${event.apartment_number}` : null,
-    ].filter(Boolean).join(', ');
+    ].filter(Boolean).join(' · ');
+    const isFirst = index === 0;
+    const isLast = index === section.data.length - 1;
 
     return (
       <View
         accessible
-        accessibilityLabel={`${method}. ${granted ? 'Granted' : `Denied, ${reasonLabel(event.reason)}`}. ${meta}`}
-        style={screenStyles.eventRow}
+        accessibilityLabel={`${method}. ${granted ? 'Granted' : `Denied, ${reasonLabel(event.reason)}`}. ${section.title} ${time}. ${who}`}
+        style={[
+          screenStyles.eventRow,
+          isFirst ? screenStyles.eventRowFirst : null,
+          isLast ? screenStyles.eventRowLast : screenStyles.eventRowDivider,
+        ]}
       >
         <View style={[screenStyles.iconFrame, granted ? screenStyles.iconGranted : screenStyles.iconDenied]}>
           <Feather name={eventIcon(event.method)} size={18} color={granted ? palette.primary : palette.danger} />
+          <View style={[screenStyles.outcomeDot, { backgroundColor: granted ? palette.success : palette.danger }]} />
         </View>
         <View style={screenStyles.eventContent}>
           <View style={screenStyles.eventHeader}>
-            <Text numberOfLines={2} style={screenStyles.eventTitle}>{method}</Text>
-            <Chip text={granted ? 'Granted' : 'Denied'} tone={granted ? 'success' : 'danger'} />
+            <Text numberOfLines={1} style={screenStyles.eventTitle}>{method}</Text>
+            <Text style={screenStyles.eventTime}>{time}</Text>
           </View>
-          <Text style={screenStyles.eventMeta}>{meta}</Text>
-          {!granted ? <Text style={screenStyles.reason}>{reasonLabel(event.reason)}</Text> : null}
+          {who ? <Text numberOfLines={1} style={screenStyles.eventMeta}>{who}</Text> : null}
+          {granted ? (
+            <Text style={screenStyles.granted}>Access granted</Text>
+          ) : (
+            <Text style={screenStyles.reason}>Denied · {reasonLabel(event.reason)}</Text>
+          )}
         </View>
       </View>
     );
@@ -138,49 +178,33 @@ export const ActivityScreen = () => {
 
   const header = (
     <View style={screenStyles.headerStack}>
-      <SectionCard>
-        <View style={screenStyles.header}>
-          <View style={screenStyles.headerCopy}>
-            <Text style={screenStyles.eyebrow}>Main entrance</Text>
-            <Text style={screenStyles.title}>Door activity</Text>
-          </View>
+      <ScreenHeader
+        eyebrow="Main entrance"
+        title="Activity"
+        subtitle={updatedLabel(updatedAt)}
+        action={(
           <Button
-            title="Refresh"
+            title=""
+            accessibilityLabel="Refresh"
             accessibilityHint="Loads the latest door activity"
             variant="secondary"
-            size="small"
+            size="icon"
             loading={refreshing}
-            icon={<Feather name="refresh-cw" size={15} color={palette.text} />}
+            icon={<Feather name="refresh-cw" size={18} color={palette.text} />}
             onPress={() => void fetchEvents(true)}
           />
-        </View>
-        <Text style={uiStyles.subtleText}>Review recent unlock requests, PIN entries, and RFID scans.</Text>
-        <Text accessibilityLiveRegion="polite" style={screenStyles.updatedText}>{updatedLabel(updatedAt)}</Text>
-      </SectionCard>
+        )}
+      />
 
-      <View accessibilityRole="tablist" style={screenStyles.filters}>
-        {(['all', 'granted', 'denied'] as ActivityFilter[]).map((value) => {
-          const selected = filter === value;
-          const label = value === 'all' ? 'All' : value === 'granted' ? 'Granted' : 'Denied';
-          return (
-            <Pressable
-              key={value}
-              accessibilityLabel={`${label}, ${filterCounts[value]} events`}
-              accessibilityRole="tab"
-              accessibilityState={{ selected }}
-              onPress={() => setFilter(value)}
-              style={({ pressed }) => [
-                screenStyles.filterButton,
-                selected ? screenStyles.filterButtonSelected : null,
-                pressed ? screenStyles.filterButtonPressed : null,
-              ]}
-            >
-              <Text style={[screenStyles.filterText, selected ? screenStyles.filterTextSelected : null]}>{label}</Text>
-              <Text style={[screenStyles.filterCount, selected ? screenStyles.filterTextSelected : null]}>{filterCounts[value]}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <SegmentedControl
+        options={[
+          { key: 'all', label: 'All', count: filterCounts.all },
+          { key: 'granted', label: 'Granted', count: filterCounts.granted },
+          { key: 'denied', label: 'Denied', count: filterCounts.denied },
+        ]}
+        value={filter}
+        onChange={setFilter}
+      />
 
       {error ? (
         <View style={screenStyles.errorStack}>
@@ -193,9 +217,12 @@ export const ActivityScreen = () => {
 
   return (
     <Screen>
-      <FlatList
-        data={visibleEvents}
+      <SectionList
+        sections={sections}
         renderItem={renderEvent}
+        renderSectionHeader={({ section }) => (
+          <Text accessibilityRole="header" style={screenStyles.sectionTitle}>{section.title}</Text>
+        )}
         keyExtractor={(event) => String(event.id)}
         ListHeaderComponent={header}
         ListEmptyComponent={loading ? (
@@ -209,16 +236,19 @@ export const ActivityScreen = () => {
               <Feather name={filter === 'denied' ? 'check-circle' : 'clock'} size={24} color={palette.primary} />
             </View>
             <Text style={screenStyles.emptyTitle}>
-              {events.length === 0 ? 'No door activity yet' : `No ${filter} activity`}
+              {events.length === 0
+                ? 'No door activity yet'
+                : filter === 'denied'
+                  ? 'No denied attempts'
+                  : 'No granted entries'}
             </Text>
             <Text style={screenStyles.emptyCopy}>
               {events.length === 0
-                ? 'New door events will appear here as they happen.'
+                ? 'Unlocks, PIN entries, and card scans will appear here as they happen.'
                 : 'Choose another filter to see the rest of the activity.'}
             </Text>
           </View>
         ) : null}
-        ItemSeparatorComponent={() => <View style={screenStyles.separator} />}
         contentContainerStyle={screenStyles.listContent}
         refreshControl={(
           <RefreshControl
@@ -229,8 +259,9 @@ export const ActivityScreen = () => {
           />
         )}
         showsVerticalScrollIndicator={false}
-        initialNumToRender={12}
-        maxToRenderPerBatch={12}
+        stickySectionHeadersEnabled={false}
+        initialNumToRender={14}
+        maxToRenderPerBatch={14}
         windowSize={7}
       />
     </Screen>
@@ -240,91 +271,30 @@ export const ActivityScreen = () => {
 const screenStyles = StyleSheet.create({
   listContent: {
     alignSelf: 'center',
-    maxWidth: 1120,
+    maxWidth: 720,
     padding: 20,
     paddingBottom: 60,
     width: '100%',
   },
   headerStack: {
-    gap: 14,
-    marginBottom: 14,
+    gap: 16,
+    marginBottom: 4,
   },
-  header: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'space-between',
-  },
-  headerCopy: {
-    flex: 1,
-  },
-  eyebrow: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  title: {
-    color: palette.text,
-    fontSize: 28,
-    fontWeight: '900',
-    marginTop: 4,
-  },
-  updatedText: {
-    color: palette.subtle,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  filters: {
-    backgroundColor: palette.card,
-    borderColor: palette.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 4,
-    padding: 4,
-  },
-  filterButton: {
-    alignItems: 'center',
-    borderRadius: 6,
-    flex: 1,
-    flexDirection: 'row',
-    gap: 6,
-    justifyContent: 'center',
-    minHeight: 44,
-    paddingHorizontal: 8,
-  },
-  filterButtonSelected: {
-    backgroundColor: palette.primarySoft,
-  },
-  filterButtonPressed: {
-    opacity: 0.72,
-  },
-  filterText: {
+  sectionTitle: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '700',
-  },
-  filterTextSelected: {
-    color: palette.primary,
-  },
-  filterCount: {
-    color: palette.subtle,
-    fontSize: 12,
-    fontVariant: ['tabular-nums'],
     fontWeight: '800',
+    marginBottom: 8,
+    marginTop: 20,
+    paddingHorizontal: 4,
   },
   errorStack: {
     gap: 8,
   },
   loadingPanel: {
     alignItems: 'center',
-    backgroundColor: palette.card,
-    borderColor: palette.border,
-    borderRadius: 8,
-    borderWidth: 1,
     gap: 10,
+    marginTop: 16,
     padding: 28,
   },
   loadingText: {
@@ -336,16 +306,17 @@ const screenStyles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: palette.card,
     borderColor: palette.border,
-    borderRadius: 8,
+    borderRadius: 14,
     borderWidth: 1,
     gap: 8,
+    marginTop: 16,
     paddingHorizontal: 24,
     paddingVertical: 36,
   },
   emptyIcon: {
     alignItems: 'center',
     backgroundColor: palette.primarySoft,
-    borderRadius: 8,
+    borderRadius: 24,
     height: 48,
     justifyContent: 'center',
     marginBottom: 4,
@@ -355,6 +326,7 @@ const screenStyles = StyleSheet.create({
     color: palette.text,
     fontSize: 17,
     fontWeight: '800',
+    textAlign: 'center',
   },
   emptyCopy: {
     color: palette.muted,
@@ -363,22 +335,34 @@ const screenStyles = StyleSheet.create({
     maxWidth: 320,
     textAlign: 'center',
   },
-  separator: {
-    height: 10,
-  },
   eventRow: {
-    alignItems: 'flex-start',
+    alignItems: 'center',
     backgroundColor: palette.card,
     borderColor: palette.border,
-    borderRadius: 8,
-    borderWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
     flexDirection: 'row',
     gap: 12,
-    padding: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  eventRowFirst: {
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    borderTopWidth: 1,
+  },
+  eventRowLast: {
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
+    borderBottomWidth: 1,
+  },
+  eventRowDivider: {
+    borderBottomColor: '#ECE4D8',
+    borderBottomWidth: 1,
   },
   iconFrame: {
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: 20,
     height: 40,
     justifyContent: 'center',
     width: 40,
@@ -389,9 +373,19 @@ const screenStyles = StyleSheet.create({
   iconDenied: {
     backgroundColor: '#F8E8E4',
   },
+  outcomeDot: {
+    borderColor: palette.card,
+    borderRadius: 6,
+    borderWidth: 2,
+    bottom: 0,
+    height: 12,
+    position: 'absolute',
+    right: 0,
+    width: 12,
+  },
   eventContent: {
     flex: 1,
-    gap: 6,
+    gap: 2,
     minWidth: 0,
   },
   eventHeader: {
@@ -404,7 +398,13 @@ const screenStyles = StyleSheet.create({
     color: palette.text,
     flex: 1,
     fontSize: 16,
-    fontWeight: '900',
+    fontWeight: '800',
+  },
+  eventTime: {
+    color: palette.muted,
+    fontSize: 13,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '700',
   },
   eventMeta: {
     color: palette.muted,
@@ -412,10 +412,14 @@ const screenStyles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 18,
   },
+  granted: {
+    color: palette.success,
+    fontSize: 13,
+    fontWeight: '700',
+  },
   reason: {
     color: palette.danger,
     fontSize: 13,
     fontWeight: '700',
-    textTransform: 'capitalize',
   },
 });

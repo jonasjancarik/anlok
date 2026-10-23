@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { api, apiErrorMessage, authHeaders } from '../../lib/api';
+import { parseServerDate } from '../../lib/time';
 import {
   ALLOW_UNSCHEDULED_GUEST_CUSTOM_PINS,
   REQUIRED_PIN_LENGTH,
@@ -273,7 +274,7 @@ export const PinManagement = ({ token, user }: PinManagementProps) => {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={{ fontSize: 18, fontWeight: '800', letterSpacing: 2, color: palette.text }}>****</Text>
                   <Text style={{ fontSize: 12, color: palette.border }}>•</Text>
-                  <SubtleText style={{ fontSize: 12 }}>{new Date(item.created_at).toLocaleDateString()}</SubtleText>
+                  <SubtleText style={{ fontSize: 12 }}>{parseServerDate(item.created_at).toLocaleDateString()}</SubtleText>
                 </View>
               </View>
               <Button 
