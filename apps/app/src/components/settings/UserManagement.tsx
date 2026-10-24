@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { api, apiErrorMessage, authHeaders } from '../../lib/api';
 import { Apartment, User } from '../../types/entities';
 import { Toast, ToastTone } from '../common/Toast';
@@ -23,6 +23,20 @@ type ToastState = { message: string; type: ToastTone } | null;
 
 const apartmentNumberForUser = (user: User) => user.apartment?.number ?? '';
 
+// Lowercase and drop accents so "svobodova" finds "Svobodová".
+const searchable = (value: string) =>
+  value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+const matchesQuery = (user: User, query: string) => {
+  const haystack = searchable(
+    [user.name, user.email ?? '', apartmentNumberForUser(user), roleLabel(user.role)].join(' ')
+  );
+  return searchable(query)
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((term) => haystack.includes(term));
+};
+
 const roleTone = (role: User['role']) => {
   if (role === 'admin') return { backgroundColor: '#F4E7D4', textColor: palette.warning };
   if (role === 'guest') return { backgroundColor: '#ECE5D9', textColor: palette.muted };
@@ -36,6 +50,7 @@ export const UserManagement = ({
   onCurrentUserUpdated,
 }: UserManagementProps) => {
   const [users, setUsers] = useState<User[]>([]);
+  const [query, setQuery] = useState('');
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [modalType, setModalType] = useState<ModalType>(null);
@@ -121,10 +136,23 @@ export const UserManagement = ({
     }, 2600);
   }, []);
 
+  const showSearch = currentUser.role === 'admin';
+  const trimmedQuery = showSearch ? query.trim() : '';
+
+  const visibleUsers = useMemo(
+    () => (trimmedQuery ? users.filter((item) => matchesQuery(item, trimmedQuery)) : users),
+    [users, trimmedQuery]
+  );
+
+  const apartmentCount = useMemo(
+    () => apartments.length || new Set(users.map((item) => apartmentNumberForUser(item))).size,
+    [apartments.length, users]
+  );
+
   const groupedUsers = useMemo(() => {
     const usersByApartment = new Map<string, User[]>();
 
-    users.forEach((item) => {
+    visibleUsers.forEach((item) => {
       const apartmentNumber = apartmentNumberForUser(item) || 'Unknown';
       const group = usersByApartment.get(apartmentNumber) ?? [];
       group.push(item);
@@ -134,7 +162,7 @@ export const UserManagement = ({
     return [...usersByApartment.entries()].sort((a, b) =>
       a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' })
     );
-  }, [users]);
+  }, [visibleUsers]);
 
   const openModal = (type: ModalType, user: User | null) => {
     setSelectedUser(user);
@@ -210,7 +238,9 @@ export const UserManagement = ({
       <View style={userStyles.toolbar}>
         <Text style={userStyles.scopeText}>
           {currentUser.role === 'admin'
-            ? `${users.length} ${users.length === 1 ? 'person' : 'people'} in ${apartments.length || groupedUsers.length} ${(apartments.length || groupedUsers.length) === 1 ? 'apartment' : 'apartments'}`
+            ? trimmedQuery
+              ? `${visibleUsers.length} of ${users.length} ${users.length === 1 ? 'person' : 'people'}`
+              : `${users.length} ${users.length === 1 ? 'person' : 'people'} in ${apartmentCount} ${apartmentCount === 1 ? 'apartment' : 'apartments'}`
             : `Apartment ${currentUser.apartment?.number ?? ''}`}
         </Text>
         <Button
@@ -221,10 +251,45 @@ export const UserManagement = ({
         />
       </View>
 
-      {error ? <Banner type="error" text={error} /> : null}
-      {listError && groupedUsers.length > 0 ? <Banner type="error" text={listError} /> : null}
+      {showSearch && users.length > 0 ? (
+        <View style={userStyles.search}>
+          <Feather name="search" size={18} color={palette.muted} />
+          <TextInput
+            accessibilityLabel="Search people"
+            autoCapitalize="none"
+            autoCorrect={false}
+            clearButtonMode="never"
+            onChangeText={setQuery}
+            placeholder="Search by name, email, or apartment"
+            placeholderTextColor={palette.subtle}
+            returnKeyType="search"
+            style={userStyles.searchInput}
+            value={query}
+          />
+          {query ? (
+            <Pressable
+              accessibilityLabel="Clear search"
+              accessibilityRole="button"
+              hitSlop={10}
+              onPress={() => setQuery('')}
+              style={userStyles.searchClear}
+            >
+              <Feather name="x" size={16} color={palette.muted} />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
 
-      {groupedUsers.length === 0 ? (
+      {error ? <Banner type="error" text={error} /> : null}
+      {listError && users.length > 0 ? <Banner type="error" text={listError} /> : null}
+
+      {groupedUsers.length === 0 && trimmedQuery && users.length > 0 ? (
+        <View style={userStyles.noMatches}>
+          <Text style={userStyles.noMatchesTitle}>No one matches “{trimmedQuery}”</Text>
+          <Text style={userStyles.noMatchesText}>Check the spelling, or search by apartment number or email.</Text>
+          <Button title="Clear search" size="small" variant="secondary" onPress={() => setQuery('')} />
+        </View>
+      ) : groupedUsers.length === 0 ? (
         <ListState
           loading={loading}
           error={listError}
@@ -397,6 +462,50 @@ const userStyles = StyleSheet.create({
     flexShrink: 1,
     fontSize: 14,
     fontWeight: '700',
+  },
+  search: {
+    alignItems: 'center',
+    backgroundColor: palette.field,
+    borderColor: palette.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    minHeight: 48,
+    paddingHorizontal: 14,
+  },
+  searchInput: {
+    color: palette.text,
+    flex: 1,
+    fontSize: 16,
+    paddingVertical: 12,
+  },
+  searchClear: {
+    alignItems: 'center',
+    backgroundColor: '#ECE5D9',
+    borderRadius: 12,
+    height: 24,
+    justifyContent: 'center',
+    width: 24,
+  },
+  noMatches: {
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 28,
+  },
+  noMatchesTitle: {
+    color: palette.text,
+    fontSize: 16,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  noMatchesText: {
+    color: palette.muted,
+    fontSize: 14,
+    lineHeight: 20,
+    maxWidth: 300,
+    textAlign: 'center',
   },
   groupList: {
     gap: 20,

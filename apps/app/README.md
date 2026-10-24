@@ -118,6 +118,7 @@ npm run android:release:upload -- v1.0.0
 - Settings tabs: Account, People, Apartments (apartments for building admins only)
 - Unlock button style (Green by default, or Minimal) chosen in Settings → Account and saved per device
 - User management: create/edit/delete/toggle active
+- Building admins can search people by name, email, apartment or role (accents are ignored)
 - PIN management
 - RFID management (+ reader endpoint)
 - Guest schedule management (recurring + one-time)
