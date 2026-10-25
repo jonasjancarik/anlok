@@ -119,7 +119,6 @@ authenticated_router.include_router(guests_router)
 authenticated_router.include_router(doors_router)
 authenticated_router.include_router(reader_router)
 authenticated_router.include_router(api_keys_router)
-authenticated_router.include_router(health_router)
 authenticated_router.include_router(logs_router)
 authenticated_router.include_router(access_events_router)
 authenticated_router.include_router(notification_devices_router)
@@ -128,6 +127,8 @@ authenticated_router.include_router(notification_devices_router)
 app.include_router(authenticated_router)
 
 # Include the auth router separately (it contains the /magic-links and /tokens endpoints)
+# Health stays unauthenticated so clients can verify a server before signing in.
+app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(oauth_router)
 
