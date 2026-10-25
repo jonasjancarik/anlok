@@ -4,12 +4,15 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
+    "android": "expo run:android",
     "android:doctor": "bash ./scripts/android-local-build.sh doctor",
     "android:prebuild": "bash ./scripts/android-local-build.sh prebuild",
     "android:apk": "bash ./scripts/android-local-build.sh apk",
     "android:release:upload": "bash ./scripts/android-release-upload.sh",
-    "ios": "expo start --ios",
+    "ios:doctor": "bash ./scripts/ios-testflight.sh doctor",
+    "ios:archive": "bash ./scripts/ios-testflight.sh archive",
+    "ios:testflight": "bash ./scripts/ios-testflight.sh upload",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit"
   },
