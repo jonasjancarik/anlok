@@ -10,7 +10,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Banner, Button, ScreenHeader, Screen, SegmentedControl, palette } from '../components/common/ui';
+import { Banner, Button, ScreenHeader, Screen, SegmentedControl, palette, useTabBarInset } from '../components/common/ui';
 import { useAuth } from '../contexts/AuthContext';
 import { api, apiErrorMessage, authHeaders } from '../lib/api';
 import { parseServerDate, relativeDayLabel, toLocalTime } from '../lib/time';
@@ -65,6 +65,7 @@ const updatedLabel = (updatedAt: Date | null) => {
 
 export const ActivityScreen = () => {
   const { token } = useAuth();
+  const tabBarInset = useTabBarInset();
   const [events, setEvents] = useState<AccessEvent[]>([]);
   const [filter, setFilter] = useState<ActivityFilter>('all');
   const [loading, setLoading] = useState(true);
@@ -249,7 +250,7 @@ export const ActivityScreen = () => {
             </Text>
           </View>
         ) : null}
-        contentContainerStyle={screenStyles.listContent}
+        contentContainerStyle={[screenStyles.listContent, { paddingBottom: 60 + tabBarInset }]}
         refreshControl={(
           <RefreshControl
             refreshing={refreshing}

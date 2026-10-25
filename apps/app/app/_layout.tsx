@@ -1,5 +1,6 @@
 import 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -54,6 +55,7 @@ export default function RootLayout() {
       <ServerConfigProvider>
         <AuthProvider>
           <PreferencesProvider>
+            <StatusBar style="dark" />
             <RootNavigator />
           </PreferencesProvider>
         </AuthProvider>

@@ -76,16 +76,25 @@ export const Screen = ({ children, noPadding = false }: { children: React.ReactN
   );
 };
 
-export const PageScroll = ({ children }: { children: React.ReactNode }) => (
-  <ScrollView
-    contentContainerStyle={styles.scrollContent}
-    keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-    keyboardShouldPersistTaps="handled"
-    showsVerticalScrollIndicator={false}
-  >
-    {children}
-  </ScrollView>
-);
+// Android lays tab screens out under the native bottom bar, so scrolling
+// content needs extra room at the end. iOS adjusts scroll insets itself.
+export const TabBarInsetContext = React.createContext(0);
+
+export const useTabBarInset = () => React.useContext(TabBarInsetContext);
+
+export const PageScroll = ({ children }: { children: React.ReactNode }) => {
+  const tabBarInset = useTabBarInset();
+  return (
+    <ScrollView
+      contentContainerStyle={[styles.scrollContent, { paddingBottom: 60 + tabBarInset }]}
+      keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      {children}
+    </ScrollView>
+  );
+};
 
 export const SectionCard = ({
   children,
