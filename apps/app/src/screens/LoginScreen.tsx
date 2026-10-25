@@ -1,7 +1,7 @@
 import * as Linking from 'expo-linking';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useServerConfig } from '../contexts/ServerConfigContext';
@@ -12,7 +12,7 @@ import { Banner, Button, FieldLabel, Input, PageScroll, Screen, SectionCard, sty
 
 export const LoginScreen = () => {
   const { login } = useAuth();
-  const navigation = useNavigation<any>();
+  const router = useRouter();
   const { apiUrl } = useServerConfig();
   const [email, setEmail] = useState('');
   const [loginCode, setLoginCode] = useState('');
@@ -271,7 +271,7 @@ export const LoginScreen = () => {
                 <Button
                   title="Change server"
                   variant="ghost"
-                  onPress={() => navigation.navigate('ServerSetup')}
+                  onPress={() => router.push('/server-setup')}
                   icon={<Feather name="server" size={16} color={palette.primary} />}
                 />
               ) : null}

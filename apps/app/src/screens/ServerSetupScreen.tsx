@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import axios from 'axios';
 import { Feather } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useServerConfig } from '../contexts/ServerConfigContext';
 import { Banner, Button, FieldLabel, Input, PageScroll, Screen, SectionCard, styles as uiStyles, palette } from '../components/common/ui';
@@ -11,7 +11,7 @@ import { DEMO_API_URL, DEMO_TOKEN } from '../lib/demo/demoServer';
 import { User } from '../types/entities';
 
 export const ServerSetupScreen = () => {
-  const navigation = useNavigation<any>();
+  const router = useRouter();
   const { user, login, logout } = useAuth();
   const { apiUrl, suggestedApiUrl, saveApiUrl } = useServerConfig();
   const [draftUrl, setDraftUrl] = useState(() => apiUrl || suggestedApiUrl);
@@ -65,8 +65,10 @@ export const ServerSetupScreen = () => {
       await saveApiUrl(draftUrl);
       const serverChanged = normalizedUrl !== apiUrl;
 
-      if (navigation.canGoBack()) {
-        navigation.goBack();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/');
       }
 
       if (serverChanged && user) {
@@ -95,8 +97,10 @@ export const ServerSetupScreen = () => {
       const response = await api.post<{ user: User }>('/auth/verify', {}, { headers: authHeaders(DEMO_TOKEN) });
       await login(DEMO_TOKEN, response.data.user);
 
-      if (navigation.canGoBack()) {
-        navigation.goBack();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/');
       }
     } finally {
       setSaving(false);

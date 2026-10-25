@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { UnlockButtonStyle, usePreferences } from '../../contexts/PreferencesContext';
 import { useServerConfig } from '../../contexts/ServerConfigContext';
@@ -23,7 +23,7 @@ interface UserProfileProps {
 const notificationsSupported = Platform.OS !== 'web';
 
 export const UserProfile = ({ token, user }: UserProfileProps) => {
-  const navigation = useNavigation<any>();
+  const router = useRouter();
   const { logout, updateUser } = useAuth();
   const { apiUrl, saveApiUrl } = useServerConfig();
   const demo = isDemoApiUrl(apiUrl);
@@ -130,7 +130,7 @@ export const UserProfile = ({ token, user }: UserProfileProps) => {
             title="Change server"
             variant="secondary"
             icon={<Feather name="edit-2" size={16} color={palette.text} />}
-            onPress={() => navigation.getParent()?.navigate('ServerSetup')}
+            onPress={() => router.push('/server-setup')}
           />
         ) : null}
       </SectionCard>
