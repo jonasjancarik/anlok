@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { DEFAULT_API_URL } from './config';
+import { DEMO_API_URL, demoAdapter, resetDemoState } from './demo/demoServer';
 
 const trimTrailingSlashes = (value: string) => value.trim().replace(/\/+$/, '');
 const hasExplicitScheme = (value: string) => /^[a-z][a-z\d+.-]*:\/\//i.test(value);
@@ -47,9 +48,20 @@ export const isSupportedApiUrl = (value: string) => {
   }
 };
 
+export const isDemoApiUrl = (value: string) => value === DEMO_API_URL;
+
 export const setApiBaseUrl = (value: string) => {
+  const wasDemo = isDemoApiUrl(currentApiUrl);
   currentApiUrl = normalizeApiUrl(value);
   api.defaults.baseURL = currentApiUrl || undefined;
+
+  if (isDemoApiUrl(currentApiUrl)) {
+    // Every demo session starts from the same sample building.
+    if (!wasDemo) resetDemoState();
+    api.defaults.adapter = demoAdapter;
+  } else {
+    api.defaults.adapter = defaultAdapter;
+  }
 };
 
 export const getApiBaseUrl = () => currentApiUrl;
@@ -58,6 +70,8 @@ export const api = axios.create({
   baseURL: undefined,
   timeout: 15000,
 });
+
+const defaultAdapter = api.defaults.adapter;
 
 api.interceptors.request.use((config) => {
   if (!currentApiUrl) {

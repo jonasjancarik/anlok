@@ -6,11 +6,13 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { useServerConfig } from '../contexts/ServerConfigContext';
 import { Banner, Button, FieldLabel, Input, PageScroll, Screen, SectionCard, styles as uiStyles, palette } from '../components/common/ui';
-import { isSupportedApiUrl, normalizeApiUrl } from '../lib/api';
+import { api, authHeaders, isSupportedApiUrl, normalizeApiUrl } from '../lib/api';
+import { DEMO_API_URL, DEMO_TOKEN } from '../lib/demo/demoServer';
+import { User } from '../types/entities';
 
 export const ServerSetupScreen = () => {
   const navigation = useNavigation<any>();
-  const { user, logout } = useAuth();
+  const { user, login, logout } = useAuth();
   const { apiUrl, suggestedApiUrl, saveApiUrl } = useServerConfig();
   const [draftUrl, setDraftUrl] = useState(() => apiUrl || suggestedApiUrl);
   const [saving, setSaving] = useState(false);
@@ -83,6 +85,24 @@ export const ServerSetupScreen = () => {
     }
   };
 
+  const startDemo = async () => {
+    setSaving(true);
+    setError('');
+    setConnectionStatus('');
+
+    try {
+      await saveApiUrl(DEMO_API_URL);
+      const response = await api.post<{ user: User }>('/auth/verify', {}, { headers: authHeaders(DEMO_TOKEN) });
+      await login(DEMO_TOKEN, response.data.user);
+
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <Screen>
       <PageScroll>
@@ -137,6 +157,21 @@ export const ServerSetupScreen = () => {
               disabled={!!validationError}
               accessibilityHint="Checks this server before saving it"
               icon={<Feather name="wifi" size={18} color="#fff" />}
+              style={{ marginTop: 12 }}
+            />
+          </SectionCard>
+
+          <SectionCard title="No server yet?">
+            <Text style={[uiStyles.subtleText, screenStyles.helper]}>
+              Try Anlok with sample data. It isn&apos;t connected to a real door, and nothing you change is saved.
+            </Text>
+            <Button
+              title="Try the demo"
+              variant="secondary"
+              onPress={() => void startDemo()}
+              disabled={saving}
+              accessibilityHint="Opens the app with sample data instead of a real server"
+              icon={<Feather name="play-circle" size={18} color={palette.primary} />}
               style={{ marginTop: 12 }}
             />
           </SectionCard>

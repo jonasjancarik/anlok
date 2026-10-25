@@ -16,7 +16,8 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import { usePreferences } from '../contexts/PreferencesContext';
-import { api, apiErrorMessage, authHeaders } from '../lib/api';
+import { useServerConfig } from '../contexts/ServerConfigContext';
+import { api, apiErrorMessage, authHeaders, isDemoApiUrl } from '../lib/api';
 import { APP_SUBTITLE, APP_TITLE } from '../lib/config';
 import { Screen, palette, shadows } from '../components/common/ui';
 
@@ -41,6 +42,7 @@ const firstName = (name?: string) => name?.trim().split(/\s+/)[0] ?? '';
 
 export const UnlockScreen = () => {
   const { token, user } = useAuth();
+  const { apiUrl } = useServerConfig();
   const { unlockButtonStyle } = usePreferences();
   const minimal = unlockButtonStyle === 'minimal';
   const { height, width } = useWindowDimensions();
@@ -265,6 +267,11 @@ export const UnlockScreen = () => {
           <Text style={screenStyles.subtitle}>
             {[APP_SUBTITLE, apartment ? `Apartment ${apartment}` : null].filter(Boolean).join(' · ')}
           </Text>
+          {isDemoApiUrl(apiUrl) ? (
+            <View style={screenStyles.demoPill}>
+              <Text style={screenStyles.demoPillText}>Demo · sample data, no real door</Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={[screenStyles.stage, { height: stageSize, width: stageSize }]}>
@@ -373,6 +380,18 @@ const screenStyles = StyleSheet.create({
   header: {
     alignItems: 'center',
     gap: 6,
+  },
+  demoPill: {
+    backgroundColor: palette.primarySoft,
+    borderRadius: 999,
+    marginTop: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  demoPillText: {
+    color: palette.primary,
+    fontSize: 13,
+    fontWeight: '700',
   },
   brandRow: {
     alignItems: 'center',

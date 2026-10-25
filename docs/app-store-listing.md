@@ -67,12 +67,16 @@ Already answered in the build: `ITSAppUsesNonExemptEncryption = false`.
 
 ## Review notes (App Review Information)
 
-Anlok connects to a self-hosted door server that each building runs, so it cannot be used without one. A demo server is provided for review.
+Anlok normally connects to a door server that each building runs yourself, so there is no shared server and no account to give you. To review the app without one, use the built-in demo:
 
-- Server address: TODO (public HTTPS URL of a demo server)
-- Sign-in: TODO (the normal sign-in is an emailed link, which a reviewer cannot receive; provide a demo account with a code or PIN that works without email)
-- Steps: open the app, enter the server address on the first screen, sign in, tap the unlock button on the Unlock screen. The demo server simulates the door and does not control real hardware.
-- Notifications are optional; denying the permission does not affect the app.
+1. Open the app. The first screen is "Server setup".
+2. Tap "Try the demo" (below the server address field).
+3. The app opens with sample data as a building administrator. Try the Unlock button, the Activity tab (including denied attempts), and Settings > People, Apartments, PINs, cards and guest schedules.
+4. To leave the demo, open Settings > Account and tap "Exit demo".
+
+The demo runs entirely on the device. It has no sign-in, makes no network requests and is not connected to a door. Notifications are optional; denying the permission does not affect the app.
+
+Sign-in required in App Store Connect: leave unticked (no account is needed).
 
 ## Screenshots
 

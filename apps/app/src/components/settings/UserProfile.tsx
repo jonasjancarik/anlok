@@ -5,6 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
 import { UnlockButtonStyle, usePreferences } from '../../contexts/PreferencesContext';
 import { useServerConfig } from '../../contexts/ServerConfigContext';
+import { isDemoApiUrl } from '../../lib/api';
 import {
   registerForAccessNotifications,
   sendAccessNotificationTest,
@@ -24,7 +25,8 @@ const notificationsSupported = Platform.OS !== 'web';
 export const UserProfile = ({ token, user }: UserProfileProps) => {
   const navigation = useNavigation<any>();
   const { logout, updateUser } = useAuth();
-  const { apiUrl } = useServerConfig();
+  const { apiUrl, saveApiUrl } = useServerConfig();
+  const demo = isDemoApiUrl(apiUrl);
   const { unlockButtonStyle, setUnlockButtonStyle } = usePreferences();
   const [notificationStatus, setNotificationStatus] = useState(
     notificationsSupported
@@ -97,17 +99,33 @@ export const UserProfile = ({ token, user }: UserProfileProps) => {
         <ApiKeyManagement token={token} userId={user.id} />
       ) : null}
 
-      <SectionCard title="Door server">
+      <SectionCard title={demo ? 'Demo mode' : 'Door server'}>
         <View style={profileStyles.serverRow}>
           <View style={profileStyles.serverIcon}>
-            <Feather name="server" size={16} color={palette.primary} />
+            <Feather name={demo ? 'play-circle' : 'server'} size={16} color={palette.primary} />
           </View>
-          <Text selectable numberOfLines={1} style={profileStyles.serverUrl}>{apiUrl}</Text>
+          <Text selectable numberOfLines={1} style={profileStyles.serverUrl}>
+            {demo ? 'Sample data, no real door' : apiUrl}
+          </Text>
         </View>
         <Text style={uiStyles.subtleText}>
-          This device opens the door and loads your account through this server.
+          {demo
+            ? 'You are exploring Anlok with sample people and activity. Nothing is saved, and no door is connected.'
+            : 'This device opens the door and loads your account through this server.'}
         </Text>
-        {Platform.OS !== 'web' ? (
+        {demo ? (
+          <Button
+            title="Exit demo"
+            variant="secondary"
+            icon={<Feather name="log-out" size={16} color={palette.text} />}
+            onPress={() => {
+              void (async () => {
+                await logout();
+                await saveApiUrl('');
+              })();
+            }}
+          />
+        ) : Platform.OS !== 'web' ? (
           <Button
             title="Change server"
             variant="secondary"
