@@ -37,13 +37,15 @@ For building administrators
 • Search the list of people in your building
 • Create API keys for integrations
 
+Anlok is open source (MIT licence). The apps and the door server are available at github.com/jonasjancarik/anlok, so you can run your own server.
+
 Anlok needs a door server. If you do not have one, ask your building administrator for the server address.
 
 Notifications are optional and can be turned off at any time in Settings.
 
 ## Support and privacy
 
-- Support URL: TODO (needs a public page or contact address)
+- Support URL: https://github.com/jonasjancarik/anlok/issues
 - Privacy policy URL: TODO (required; must state what the server stores: email, access events, PINs, push tokens)
 - Marketing URL: optional
 
