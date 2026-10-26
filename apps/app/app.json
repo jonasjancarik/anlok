@@ -3,7 +3,7 @@
     "name": "Anlok",
     "slug": "anlok-app",
     "scheme": "anlok",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -22,7 +22,7 @@
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         },
-        "NSLocalNetworkUsageDescription": "Anlok se připojuje k vašemu serveru v místní síti."
+        "NSLocalNetworkUsageDescription": "Anlok se p\u0159ipojuje k va\u0161emu serveru v m\u00edstn\u00ed s\u00edti."
       }
     },
     "android": {
