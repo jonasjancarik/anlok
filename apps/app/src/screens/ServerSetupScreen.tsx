@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import axios from 'axios';
 import { Feather } from '@expo/vector-icons';
@@ -18,6 +18,16 @@ export const ServerSetupScreen = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [connectionStatus, setConnectionStatus] = useState('');
+  const [completedServerUrl, setCompletedServerUrl] = useState('');
+
+  // Navigate after the providers have committed the server and session changes,
+  // so the destination is available in the root stack's protected routes.
+  // eslint-disable-next-line react-doctor/no-event-handler -- Protected routes must observe committed provider state before navigation.
+  useEffect(() => {
+    if (completedServerUrl && apiUrl === completedServerUrl) {
+      router.replace(user ? '/' : '/login');
+    }
+  }, [apiUrl, completedServerUrl, router, user]);
 
   const validationError = useMemo(() => {
     const trimmed = draftUrl.trim();
@@ -62,18 +72,12 @@ export const ServerSetupScreen = () => {
       }
 
       setConnectionStatus(`Connected to ${normalizedUrl}.`);
-      await saveApiUrl(draftUrl);
       const serverChanged = normalizedUrl !== apiUrl;
-
-      if (router.canGoBack()) {
-        router.back();
-      } else {
-        router.replace('/');
-      }
-
       if (serverChanged && user) {
         await logout();
       }
+      await saveApiUrl(draftUrl);
+      setCompletedServerUrl(normalizedUrl);
     } catch (nextError) {
       if (axios.isAxiosError(nextError) && nextError.code === 'ECONNABORTED') {
         setError('The server took too long to respond. Check the address and your connection, then try again.');
@@ -97,11 +101,7 @@ export const ServerSetupScreen = () => {
       const response = await api.post<{ user: User }>('/auth/verify', {}, { headers: authHeaders(DEMO_TOKEN) });
       await login(DEMO_TOKEN, response.data.user);
 
-      if (router.canGoBack()) {
-        router.back();
-      } else {
-        router.replace('/');
-      }
+      setCompletedServerUrl(DEMO_API_URL);
     } finally {
       setSaving(false);
     }
