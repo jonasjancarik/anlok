@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Alert, Share, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { api, apiErrorMessage, authHeaders } from '../../lib/api';
+import { api, apiErrorMessage, authHeaders, getApiBaseUrl } from '../../lib/api';
 import { parseServerDate } from '../../lib/time';
-import { ApiKey } from '../../types/entities';
+import { ApiKey, ApiKeyScope } from '../../types/entities';
 import {
   Banner,
   Button,
@@ -13,9 +13,11 @@ import {
   Input,
   ListState,
   SectionCard,
+  SegmentedControl,
   SubtleText,
   palette,
 } from '../common/ui';
+import { UnlockShortcutGuide } from './UnlockShortcutGuide';
 
 interface ApiKeyManagementProps {
   token: string;
@@ -25,6 +27,8 @@ interface ApiKeyManagementProps {
 export const ApiKeyManagement = ({ token, userId }: ApiKeyManagementProps) => {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [description, setDescription] = useState('');
+  const [scope, setScope] = useState<ApiKeyScope>('unlock');
+  const [newKeyScope, setNewKeyScope] = useState<ApiKeyScope>('unlock');
   const [newKey, setNewKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -61,13 +65,15 @@ export const ApiKeyManagement = ({ token, userId }: ApiKeyManagementProps) => {
         {
           description: description.trim(),
           user_id: userId,
+          scope,
         },
         { headers: authHeaders(token) }
       );
 
       setNewKey(response.data.api_key ?? null);
+      setNewKeyScope(response.data.scope ?? scope);
       setDescription('');
-      setSuccess('API key created. Copy now; full key shown once.');
+      setSuccess('API key created. Copy it now. You won’t be able to see it again.');
       await loadKeys();
     } catch (nextError) {
       setError(apiErrorMessage(nextError, 'Failed to create API key.'));
@@ -104,8 +110,24 @@ export const ApiKeyManagement = ({ token, userId }: ApiKeyManagementProps) => {
         <Input
           value={description}
           onChangeText={setDescription}
-          placeholder="e.g. Home Assistant integration"
+          placeholder="e.g. iPhone shortcut or Home Assistant"
         />
+      </View>
+      <View style={{ gap: 6 }}>
+        <FieldLabel>What can this key do?</FieldLabel>
+        <SegmentedControl<ApiKeyScope>
+          options={[
+            { key: 'unlock', label: 'Open door only', icon: 'unlock' },
+            { key: 'full', label: 'Full access', icon: 'key' },
+          ]}
+          value={scope}
+          onChange={setScope}
+        />
+        <SubtleText style={{ fontSize: 13 }}>
+          {scope === 'unlock'
+            ? 'Best for phone shortcuts, widgets and Home Assistant.'
+            : 'The key can do anything you can do in Anlok, including managing PINs and keys. Use it only for services you fully trust.'}
+        </SubtleText>
       </View>
       <Button
         title="Create API Key"
@@ -129,9 +151,37 @@ export const ApiKeyManagement = ({ token, userId }: ApiKeyManagementProps) => {
           }}
         >
           <Text style={{ fontWeight: '700', color: palette.text }}>Copy your API key now</Text>
-          <SubtleText>The full key is only shown once after creation.</SubtleText>
-          <Input value={newKey} editable={false} style={{ backgroundColor: '#fff' }} />
-          <Button size="small" title="Dismiss" variant="secondary" onPress={() => setNewKey(null)} />
+          <SubtleText>You won’t be able to see the full key again. Press and hold it to copy.</SubtleText>
+          <Text
+            selectable
+            style={{
+              backgroundColor: '#fff',
+              borderWidth: 1,
+              borderColor: palette.border,
+              borderRadius: 8,
+              padding: 12,
+              color: palette.text,
+              fontSize: 14,
+            }}
+          >
+            {newKey}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Button
+              size="small"
+              title="Share key"
+              variant="secondary"
+              icon={<Feather name="share" size={14} color={palette.text} />}
+              onPress={() => void Share.share({ message: newKey })}
+            />
+            <Button size="small" title="Done" variant="secondary" onPress={() => setNewKey(null)} />
+          </View>
+          {newKeyScope === 'unlock' ? (
+            <>
+              <Divider />
+              <UnlockShortcutGuide serverUrl={getApiBaseUrl()} apiKey={newKey} />
+            </>
+          ) : null}
         </View>
       ) : null}
       
@@ -145,7 +195,7 @@ export const ApiKeyManagement = ({ token, userId }: ApiKeyManagementProps) => {
           loading={loading}
           error={listError}
           emptyTitle="No API keys"
-          emptyText="Create a key when you need to connect another trusted service."
+          emptyText="Create a key to open the door from a phone shortcut, a widget or Home Assistant."
           onRetry={() => void loadKeys()}
         />
       ) : (
@@ -168,6 +218,7 @@ export const ApiKeyManagement = ({ token, userId }: ApiKeyManagementProps) => {
                     ...{apiKey.key_suffix}
                   </Text>
                   <Chip text={apiKey.is_active ? 'Active' : 'Inactive'} tone={apiKey.is_active ? 'success' : 'danger'} />
+                  <Chip text={apiKey.scope === 'unlock' ? 'Opens door only' : 'Full access'} />
                 </View>
                 <SubtleText style={{ fontSize: 13, marginBottom: 2 }}>{apiKey.description || 'No description'}</SubtleText>
                 <SubtleText style={{ fontSize: 12 }}>Created: {parseServerDate(apiKey.created_at).toLocaleDateString()}</SubtleText>
@@ -184,6 +235,13 @@ export const ApiKeyManagement = ({ token, userId }: ApiKeyManagementProps) => {
           ))}
         </View>
       )}
+
+      {!newKey ? (
+        <>
+          <Divider />
+          <UnlockShortcutGuide serverUrl={getApiBaseUrl()} />
+        </>
+      ) : null}
     </SectionCard>
   );
 };

@@ -118,7 +118,7 @@ const buildState = (): DemoState => {
     pins,
     rfids,
     apiKeys: [
-      { key_suffix: 'a1b2', description: 'Home automation', created_at: createdAt, is_active: true, user_id: 1 },
+      { key_suffix: 'a1b2', description: 'Home automation', created_at: createdAt, is_active: true, user_id: 1, scope: 'unlock' },
     ],
     events,
   };
@@ -350,6 +350,7 @@ const routes: Array<[string, RegExp, Handler]> = [
       created_at: new Date().toISOString(),
       is_active: true,
       user_id: Number(body.user_id),
+      scope: body.scope === 'unlock' ? 'unlock' : 'full',
       api_key: key,
     };
     state.apiKeys.push({ ...apiKey, api_key: undefined });

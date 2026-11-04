@@ -52,12 +52,15 @@ export interface Apartment {
   users?: User[];
 }
 
+export type ApiKeyScope = 'full' | 'unlock';
+
 export interface ApiKey {
   key_suffix: string;
   description: string;
   created_at: string;
   is_active: boolean;
   user_id: number;
+  scope?: ApiKeyScope;
   api_key?: string;
 }
 
