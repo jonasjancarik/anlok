@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
-from typing import Optional, List, Any, Dict
+from typing import Optional, List, Any, Dict, Literal
 from datetime import date, time
 
 # Include all the Pydantic models here
@@ -173,9 +173,15 @@ class GuestSchedulesResponse(BaseModel):
     one_time_access: List[OneTimeAccessResponse]
 
 
+APIKeyScope = Literal["full", "unlock"]
+
+
 class APIKeyCreate(BaseModel):
     description: str
     user_id: Optional[int] = None
+    # "unlock" keys can only call POST /doors/unlock. Use them for phone
+    # shortcuts, widgets and home automation.
+    scope: APIKeyScope = "full"
 
 
 class APIKeyResponse(BaseModel):
@@ -184,6 +190,7 @@ class APIKeyResponse(BaseModel):
     created_at: str
     is_active: bool
     user_id: int
+    scope: APIKeyScope = "full"
 
     class Config:
         from_attributes = True

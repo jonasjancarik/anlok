@@ -10,6 +10,27 @@ from src.utils import hash_secret
 
 api_key_header = APIKeyHeader(name="X-API-Key")
 
+UNLOCK_ONLY_SCOPE = "unlock"
+# (method, route path) pairs an unlock-only API key may call.
+UNLOCK_ONLY_ROUTES = {("POST", "/doors/unlock")}
+
+
+def _route_path(request: Request) -> str:
+    route = request.scope.get("route")
+    return getattr(route, "path", None) or request.url.path
+
+
+def ensure_api_key_allows_request(api_key_obj, request: Request) -> None:
+    """Reject requests an unlock-only API key is not allowed to make."""
+    if (api_key_obj.scope or "full") != UNLOCK_ONLY_SCOPE:
+        return
+    if (request.method, _route_path(request)) in UNLOCK_ONLY_ROUTES:
+        return
+    raise APIException(
+        status_code=403,
+        detail="This API key can only unlock the door",
+    )
+
 
 async def get_current_user_from_api_key(
     api_key: str = Security(api_key_header), db: Session = Depends(get_db)
@@ -32,6 +53,7 @@ async def get_current_user(request: Request, db: Session = Depends(get_db)) -> U
         with db as session:  # Use the context manager properly
             api_key_obj = verify_api_key(session, api_key)
         if api_key_obj:
+            ensure_api_key_allows_request(api_key_obj, request)
             return api_key_obj.user
 
     # If no API key or invalid, fall back to bearer token authentication

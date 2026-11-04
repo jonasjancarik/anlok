@@ -166,6 +166,8 @@ class APIKey(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_active = Column(Boolean, default=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    # "full" keys act as their owner; "unlock" keys can only open the door.
+    scope = Column(String, nullable=False, default="full", server_default="full")
 
     user = relationship("User", back_populates="api_keys")
 
@@ -298,11 +300,23 @@ def migrate_notification_schema():
     )
 
 
+def migrate_api_key_schema():
+    if engine.dialect.name != "sqlite":
+        return
+
+    _add_column_if_missing(
+        "api_keys",
+        "scope",
+        "scope VARCHAR NOT NULL DEFAULT 'full'",
+    )
+
+
 def init_db():
     import src.oauth_models  # noqa: F401 - registers OAuth tables on Base.metadata
 
     Base.metadata.create_all(bind=engine)
     migrate_notification_schema()
+    migrate_api_key_schema()
 
 
 def add_apartment(number, description=None):
@@ -928,13 +942,14 @@ def get_user_api_keys(user_id):
         return db.query(APIKey).filter(APIKey.user_id == user_id).all()
 
 
-def add_api_key(suffix, key_hash, description, user_id):
+def add_api_key(suffix, key_hash, description, user_id, scope="full"):
     with get_db() as db:
         api_key = APIKey(
             key_suffix=suffix,
             key_hash=key_hash,
             description=description,
             user_id=user_id,
+            scope=scope,
         )
         db.add(api_key)
         db.commit()

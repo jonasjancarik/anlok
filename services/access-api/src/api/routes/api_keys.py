@@ -56,6 +56,7 @@ async def create_api_key(
         key_hash=key_hash,
         description=data.description,
         user_id=user_id,
+        scope=data.scope,
     )
 
     return APIKeyWithSecret(
@@ -64,6 +65,7 @@ async def create_api_key(
         created_at=db_api_key.created_at.isoformat(),
         is_active=db_api_key.is_active,
         user_id=user_id,
+        scope=db_api_key.scope,
         api_key=api_key,
     )
 
@@ -92,6 +94,7 @@ def list_api_keys(current_user: db.User = Depends(get_current_user)):
             created_at=api_key.created_at.isoformat(),
             is_active=api_key.is_active,
             user_id=api_key.user_id,
+            scope=api_key.scope or "full",
         )
         for api_key in api_keys
     ]

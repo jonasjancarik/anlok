@@ -337,6 +337,39 @@ Set `MCP_PUBLIC_URL`, `OAUTH_ISSUER_URL`, and `WEB_APP_URL` to their exact publi
 URLs. Production startup rejects non-HTTPS values; documented localhost HTTP is
 allowed for development.
 
+### API keys, phone shortcuts and Home Assistant
+
+Users create API keys in the app's settings. Each key has a scope:
+
+- `unlock`: the key can only call `POST /doors/unlock`. Every other endpoint
+  answers `403`. Use this for iPhone Shortcuts, Android home-screen shortcuts
+  and widgets, and Home Assistant.
+- `full` (the API default, kept for older clients): the key acts as its owner
+  with all of the owner's permissions.
+
+`POST /api-keys` takes an optional `scope` (`"full"` or `"unlock"`); the app
+and web client default to `unlock`. Existing keys are migrated to `full` on
+startup. Send the key in the `X-API-Key` header. The `api_key` query parameter
+still works, but URLs tend to end up in logs and browser history.
+
+```bash
+curl -X POST "$API_URL/doors/unlock" -H "X-API-Key: $UNLOCK_KEY"
+```
+
+Home Assistant example (`configuration.yaml`, with the key in `secrets.yaml`):
+
+```yaml
+rest_command:
+  anlok_unlock:
+    url: "https://door.example.com/doors/unlock"
+    method: post
+    headers:
+      X-API-Key: !secret anlok_api_key
+```
+
+The app's API key screen shows step-by-step guides for iPhone, Android and
+Home Assistant with the server URL and the new key filled in.
+
 ### First-time setup
 
 Set environment variables to configure the app. First copy the example file with `cp .env.example .env` and then edit as needed.
