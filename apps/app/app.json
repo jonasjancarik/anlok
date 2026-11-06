@@ -39,6 +39,7 @@
     },
     "plugins": [
       "./plugins/withPodsDeploymentTarget",
+      "./plugins/withSceneLifecycle",
       "expo-router",
       "expo-font",
       "expo-notifications"
