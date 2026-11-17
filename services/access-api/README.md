@@ -36,27 +36,25 @@ There is also a special mode called T9EM - I need to add more details on that bu
 
 ### Wiring
 
-The wiring below uses a Wiegand reader and a Wiegand to USB converter. Power the PIN/card reader straight from the 12V source, not from the RPi through the converter, so that the reader cannot cause undervoltage on the RPi.
+The wiring below uses a Wiegand reader and a Wiegand to USB converter. Power the PIN/card reader straight from the 12V source, not from the RPi through the converter, so that the reader cannot cause undervoltage on the RPi. Connect the reader's ground to the converter's ground as well, so that the data lines have a shared reference.
+
+Red lines carry power, grey lines are ground and blue lines are signals. IN 2 on the lock I/O module is wired to the intercom's door-open button, so the door can still be opened from the intercom.
 
 ```mermaid
 flowchart TD
-  subgraph doorRemote["Door Remote"]
-        drPower["12V DC +/-"]
-        drIn1Pos["IN 1 +"]
-        drIn1Neg["IN 1 -"]
-        drIn2["IN 2"]
-  end
-  subgraph rpi["RPi 4"]
-        rpi5vPin2["5V (Pin 2)"]
-        rpiGndPin9["Ground (Pin 9)"]
-        rpiGndPin6["Ground (Pin 6)"]
-        rpiGPIO18["GPIO 18"]
-        rpi5vPin4["5V (Pin 4)"]
-        rpiUSB["USB Port"]
-  end
-  subgraph dcDc5V["Stepdown to 5V"]
+  src12V["12V source"]
+  intercom["Intercom"]
+  subgraph dcDc5V["Step-down to 5V"]
         sdOutPos["OUT+"]
         sdOutNeg["OUT-"]
+  end
+  subgraph rpi["RPi 4"]
+        rpi5vPin2["5V (pin 2)"]
+        rpiGndPin9["GND (pin 9)"]
+        rpi5vPin4["5V (pin 4)"]
+        rpiGndPin6["GND (pin 6)"]
+        rpiGPIO18["GPIO 18 (pin 12)"]
+        rpiUSB["USB port"]
   end
   subgraph relay["Relay"]
         relayVcc["VCC"]
@@ -65,31 +63,54 @@ flowchart TD
         relayCom["COM"]
         relayNo["NO"]
   end
-  subgraph pinRfid["PIN/RFID Reader"]
-        reader12V["12V DC +/-"]
+  subgraph pinRfid["PIN/RFID reader"]
+        readerPos["12V +"]
+        readerGnd["GND"]
         readerData0["Data 0"]
         readerData1["Data 1"]
   end
+  subgraph usbWiegand["Wiegand to USB converter"]
+        convGnd["GND"]
+        convData0["Data 0"]
+        convData1["Data 1"]
+        convUsb["USB"]
+  end
+  subgraph ioModule["Lock I/O module"]
+        ioPower["12V DC +/-"]
+        ioIn1Pos["IN 1 +"]
+        ioIn1Neg["IN 1 -"]
+        ioIn2["IN 2"]
+  end
 
-    src12V["12V Source"] --> dcDc5V & drPower & relayCom & reader12V
-    sdOutPos --> rpi5vPin2
-    sdOutNeg --> rpiGndPin9
-    rpiGndPin6 --> relayGnd
-    rpiGPIO18 --> relayIn
-    usbWiegand["USB Wiegand Converter"] <----> rpiUSB
-    intercom["Intercom"] ==> drIn2
-    readerData0 --> usbWiegand
-    readerData1 --> usbWiegand
-    relayCom --> drIn1Pos
-    relayNo --> drIn1Neg
-    rpi5vPin4 --> relayVcc
+    src12V ---|"+12V and GND"| dcDc5V
+    src12V ---|"+12V and GND"| ioPower
+    src12V ---|"+12V"| readerPos
+    src12V ---|"+12V"| relayCom
+    sdOutPos ---|"+5V"| rpi5vPin2
+    rpi5vPin4 ---|"+5V"| relayVcc
+    src12V ---|"GND"| readerGnd
+    sdOutNeg ---|"GND"| rpiGndPin9
+    rpiGndPin6 ---|"GND"| relayGnd
+    readerGnd ---|"GND"| convGnd
+    rpiGPIO18 ---|"unlock signal"| relayIn
+    readerData0 --- convData0
+    readerData1 --- convData1
+    convUsb ---|"USB"| rpiUSB
+    relayCom --- ioIn1Pos
+    relayNo --- ioIn1Neg
+    intercom ---|"door-open button"| ioIn2
 
-    style src12V fill:#ff9999
-    style dcDc5V fill:#ccccff
-    style rpi fill:#99ccff
-    style pinRfid fill:#ffcc99
-    style doorRemote fill:#99ff99
-    style relay fill:#ffff99
+    linkStyle 0,1,2,3,4,5 stroke:#d62728,stroke-width:2px
+    linkStyle 6,7,8,9 stroke:#7f7f7f,stroke-width:2px
+    linkStyle 10,11,12,13,14,15,16 stroke:#1f77b4,stroke-width:2px
+
+    style src12V fill:#ff9999,color:#000
+    style dcDc5V fill:#ccccff,color:#000
+    style rpi fill:#99ccff,color:#000
+    style pinRfid fill:#ffcc99,color:#000
+    style usbWiegand fill:#e0e0e0,color:#000
+    style ioModule fill:#99ff99,color:#000
+    style relay fill:#ffff99,color:#000
 ```
 
 ## Install
