@@ -24,7 +24,7 @@ Client apps in this monorepo:
 
 ## Hardware
 
-Tested on Raspberry PI 4 and 5. On Raspberry PI 3, you will have trouble installing the required packages (in particular rpi-gpio) with Python 3.11. The code contains some async stuff that won't work on Python 3.9 (which is the default on Raspberry PI 3) and rpi.gpio won't run on Python 3.11 on Raspberry PI 3 (`version `GLIBC_2.34' not found`).
+Tested on Raspberry Pi 3, 4 and 5 with 64-bit Raspberry Pi OS Bookworm, which includes Python 3.11. Older releases such as Bullseye have Python 3.9 and an older glibc, and the `lgpio` package won't run there (`GLIBC_2.34 not found`). On a Pi 3, use the system Python or let uv download a prebuilt one; building Python with pyenv takes a long time on the Pi 3's CPU.
 
 This will work with any relay operated lock that you can control from the GPIO pins of a Raspberry PI. You have to set up wiring so that the PI sends a door unlocking signal by activating a relay on a 12-24 V circuit connected to the I/O module. Tested with the I/O Module from SÜDMETALL (https://www.suedmetall.com/products/locking-systems/stand-alone-solutions/i-o-modul/?lang=en).
 
@@ -38,7 +38,7 @@ There is also a special mode called T9EM - I need to add more details on that bu
 
 The wiring below uses a Wiegand reader and a Wiegand to USB converter. Power the PIN/card reader straight from the 12V source, not from the RPi through the converter, so that the reader cannot cause undervoltage on the RPi. Connect the reader's ground to the converter's ground as well, so that the data lines have a shared reference.
 
-Red lines carry power, grey lines are ground and blue lines are signals. IN 2 on the lock I/O module is wired to the intercom's door-open button, so the door can still be opened from the intercom. IN 1 is a potential-free contact input: the relay unlocks the door by bridging IN 1 + and IN 1 -, and no supply voltage is wired to the relay contacts.
+Red lines carry power, grey lines are ground and blue lines are signals. IN 2 on the lock I/O module is wired to the intercom's door-open button, so the door can still be opened from the intercom. The 40-pin header is the same on the Raspberry Pi 3, 4 and 5, so the pin numbers apply to all three. IN 1 is a potential-free contact input: the relay unlocks the door by bridging IN 1 + and IN 1 -, and no supply voltage is wired to the relay contacts.
 
 ```mermaid
 flowchart TD
@@ -48,7 +48,7 @@ flowchart TD
         sdOutPos["OUT+"]
         sdOutNeg["OUT-"]
   end
-  subgraph rpi["RPi 4"]
+  subgraph rpi["Raspberry Pi"]
         rpi5vPin2["5V (pin 2)"]
         rpiGndPin9["GND (pin 9)"]
         rpi5vPin4["5V (pin 4)"]
