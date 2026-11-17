@@ -38,7 +38,7 @@ There is also a special mode called T9EM - I need to add more details on that bu
 
 The wiring below uses a Wiegand reader and a Wiegand to USB converter. Power the PIN/card reader straight from the 12V source, not from the RPi through the converter, so that the reader cannot cause undervoltage on the RPi. Connect the reader's ground to the converter's ground as well, so that the data lines have a shared reference.
 
-Red lines carry power, grey lines are ground and blue lines are signals. IN 2 on the lock I/O module is wired to the intercom's door-open button, so the door can still be opened from the intercom.
+Red lines carry power, grey lines are ground and blue lines are signals. IN 2 on the lock I/O module is wired to the intercom's door-open button, so the door can still be opened from the intercom. IN 1 is a potential-free contact input: the relay unlocks the door by bridging IN 1 + and IN 1 -, and no supply voltage is wired to the relay contacts.
 
 ```mermaid
 flowchart TD
@@ -85,7 +85,6 @@ flowchart TD
     src12V ---|"+12V and GND"| dcDc5V
     src12V ---|"+12V and GND"| ioPower
     src12V ---|"+12V"| readerPos
-    src12V ---|"+12V"| relayCom
     sdOutPos ---|"+5V"| rpi5vPin2
     rpi5vPin4 ---|"+5V"| relayVcc
     src12V ---|"GND"| readerGnd
@@ -100,9 +99,9 @@ flowchart TD
     relayNo --- ioIn1Neg
     intercom ---|"door-open button"| ioIn2
 
-    linkStyle 0,1,2,3,4,5 stroke:#d62728,stroke-width:2px
-    linkStyle 6,7,8,9 stroke:#7f7f7f,stroke-width:2px
-    linkStyle 10,11,12,13,14,15,16 stroke:#1f77b4,stroke-width:2px
+    linkStyle 0,1,2,3,4 stroke:#d62728,stroke-width:2px
+    linkStyle 5,6,7,8 stroke:#7f7f7f,stroke-width:2px
+    linkStyle 9,10,11,12,13,14,15 stroke:#1f77b4,stroke-width:2px
 
     style src12V fill:#ff9999,color:#000
     style dcDc5V fill:#ccccff,color:#000
