@@ -36,7 +36,7 @@ There is also a special mode called T9EM - I need to add more details on that bu
 
 ### Wiring
 
-See the wiring I am using with a Wiegand reader and a Wiegand to USB converter below. You could also connect the 12V source directly to the PIN/card rearder, which might help prevent undervoltage on the RPi.
+The wiring below uses a Wiegand reader and a Wiegand to USB converter. Power the PIN/card reader straight from the 12V source, not from the RPi through the converter, so that the reader cannot cause undervoltage on the RPi.
 
 ```mermaid
 flowchart TD
@@ -71,14 +71,12 @@ flowchart TD
         readerData1["Data 1"]
   end
 
-    src12V["12V Source"] --> dcDc5V & drPower & relayCom
+    src12V["12V Source"] --> dcDc5V & drPower & relayCom & reader12V
     sdOutPos --> rpi5vPin2
     sdOutNeg --> rpiGndPin9
     rpiGndPin6 --> relayGnd
     rpiGPIO18 --> relayIn
     usbWiegand["USB Wiegand Converter"] <----> rpiUSB
-    usbWiegand --> stepUp12V["Step Up to 12V"]
-    stepUp12V --> reader12V
     intercom["Intercom"] ==> drIn2
     readerData0 --> usbWiegand
     readerData1 --> usbWiegand
