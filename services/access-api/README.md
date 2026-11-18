@@ -112,6 +112,114 @@ flowchart TD
     style relay fill:#ffff99,color:#000
 ```
 
+#### Detailed wiring with protection
+
+This version adds a fuse and buffer capacitors, and shows which parts sit at the supply and which at the door. They help when the 12V reaches the door over a long cable:
+
+- **Fuse (slow-blow, T 2A):** in the +12V wire right at the supply, so it protects the whole cable run. Use a fuse no larger than the supply's rated current.
+- **2200 µF capacitor at the door:** across the 12V terminals where the cable arrives, before it splits to the other parts. It covers short current surges locally, so they don't cause a voltage drop along the long cable.
+- **1000 µF and 100 nF capacitors at the reader:** across the reader's 12V and GND terminals. The electrolytic covers the reader's switch-on surge; the ceramic filters fast noise that could disturb the Wiegand data.
+
+Use electrolytic capacitors rated 25V or more and keep their leads short. Electrolytics are polarised: the leg marked with a stripe goes to GND.
+
+```mermaid
+flowchart TD
+  subgraph supply["12V supply"]
+        supplyPos["+12V"]
+        supplyGnd["GND"]
+  end
+  fuse["Fuse T 2A, at the supply"]
+  subgraph doorTerminals["12V terminals at the door"]
+        doorPos["+12V"]
+        doorGnd["GND"]
+  end
+  capDoor["2200 µF 25V, fitted at the door terminals"]
+  intercom["Intercom"]
+  subgraph dcDc5V["Step-down to 5V"]
+        sdInPos["IN+"]
+        sdInNeg["IN-"]
+        sdOutPos["OUT+"]
+        sdOutNeg["OUT-"]
+  end
+  subgraph rpi["Raspberry Pi"]
+        rpi5vPin2["5V (pin 2)"]
+        rpiGndPin9["GND (pin 9)"]
+        rpi5vPin4["5V (pin 4)"]
+        rpiGndPin6["GND (pin 6)"]
+        rpiGPIO18["GPIO 18 (pin 12)"]
+        rpiUSB["USB port"]
+  end
+  subgraph relay["Relay"]
+        relayVcc["VCC"]
+        relayGnd["GND"]
+        relayIn["IN"]
+        relayCom["COM"]
+        relayNo["NO"]
+  end
+  subgraph pinRfid["PIN/RFID reader"]
+        readerPos["12V +"]
+        readerGnd["GND"]
+        readerData0["Data 0"]
+        readerData1["Data 1"]
+  end
+  capReader["1000 µF 25V and 100 nF, fitted at the reader's terminals"]
+  subgraph usbWiegand["Wiegand to USB converter"]
+        convGnd["GND"]
+        convData0["Data 0"]
+        convData1["Data 1"]
+        convUsb["USB"]
+  end
+  subgraph ioModule["Lock I/O module"]
+        ioPos["12V +"]
+        ioGnd["GND"]
+        ioIn1Pos["IN 1 +"]
+        ioIn1Neg["IN 1 -"]
+        ioIn2["IN 2"]
+  end
+
+    supplyPos ---|"+12V"| fuse
+    fuse ---|"+12V, long cable"| doorPos
+    doorPos ---|"+12V"| sdInPos
+    doorPos ---|"+12V"| ioPos
+    doorPos ---|"+12V"| readerPos
+    doorPos ---|"+"| capDoor
+    readerPos ---|"+"| capReader
+    sdOutPos ---|"+5V"| rpi5vPin2
+    rpi5vPin4 ---|"+5V"| relayVcc
+    supplyGnd ---|"GND, long cable"| doorGnd
+    doorGnd ---|"GND"| sdInNeg
+    doorGnd ---|"GND"| ioGnd
+    doorGnd ---|"GND"| readerGnd
+    doorGnd ---|"- (stripe)"| capDoor
+    readerGnd ---|"- (stripe)"| capReader
+    sdOutNeg ---|"GND"| rpiGndPin9
+    rpiGndPin6 ---|"GND"| relayGnd
+    readerGnd ---|"GND"| convGnd
+    rpiGPIO18 ---|"unlock signal"| relayIn
+    readerData0 --- convData0
+    readerData1 --- convData1
+    convUsb ---|"USB"| rpiUSB
+    relayCom --- ioIn1Pos
+    relayNo --- ioIn1Neg
+    intercom ---|"door-open button"| ioIn2
+
+    linkStyle 0,1,2,3,4,5,6,7,8 stroke:#d62728,stroke-width:2px
+    linkStyle 9,10,11,12,13,14,15,16,17 stroke:#7f7f7f,stroke-width:2px
+    linkStyle 18,19,20,21,22,23,24 stroke:#1f77b4,stroke-width:2px
+
+    style supply fill:#ff9999,color:#000
+    style doorTerminals fill:#ff9999,color:#000
+    style fuse fill:#ffd6d6,color:#000
+    style capDoor fill:#ffd6d6,color:#000
+    style capReader fill:#ffd6d6,color:#000
+    style dcDc5V fill:#ccccff,color:#000
+    style rpi fill:#99ccff,color:#000
+    style pinRfid fill:#ffcc99,color:#000
+    style usbWiegand fill:#e0e0e0,color:#000
+    style ioModule fill:#99ff99,color:#000
+    style relay fill:#ffff99,color:#000
+```
+
 ## Install
 
 ```bash
